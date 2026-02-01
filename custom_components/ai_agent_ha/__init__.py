@@ -74,9 +74,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             raise ConfigEntryNotReady("Config entry missing required 'ai_provider' key")
 
+        # Ensure models dict exists and has the provider's model
+        provider = config_data["ai_provider"]
+        if "models" not in config_data:
+            config_data["models"] = {}
+            _LOGGER.debug("Models dict missing, creating new one")
+        
+        # If the provider's model is missing, set default and update config entry
+        from .config_flow import DEFAULT_MODELS
+        if provider not in config_data["models"] or not config_data["models"][provider]:
+            default_model = DEFAULT_MODELS.get(provider, "")
+            config_data["models"][provider] = default_model
+            _LOGGER.warning(
+                "Model missing for provider %s, setting default: %s. Please reconfigure to set your preferred model.",
+                provider,
+                default_model,
+            )
+            # Update the config entry to preserve the default model
+            hass.config_entries.async_update_entry(entry, data=config_data)
+
         if DOMAIN not in hass.data:
             hass.data[DOMAIN] = {"agents": {}, "configs": {}}
 
+        # Provider was already set above, but ensure it's still valid
         provider = config_data["ai_provider"]
 
         # Validate provider

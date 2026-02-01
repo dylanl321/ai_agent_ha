@@ -294,12 +294,19 @@ class AiAgentHaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                     # Use selected model if it's not the "Custom..." option
                     self.config_data["models"][provider] = selected_model
                 else:
+                    # Always save a model - use default if none selected
                     # For local, alter, zai, and bedrock providers, allow empty model name
+                    # but still prefer default if available
                     if provider in ("local", "alter", "zai", "bedrock"):
-                        self.config_data["models"][provider] = ""
+                        # For these providers, empty is acceptable, but use default if provided
+                        self.config_data["models"][provider] = default_model if default_model else ""
                     else:
-                        # Fallback to default model for other providers
+                        # For other providers, always use default model
                         self.config_data["models"][provider] = default_model
+                    
+                    _LOGGER.debug(
+                        f"Config flow - No model selected, using default for {provider}: {self.config_data['models'][provider]}"
+                    )
 
                 return self.async_create_entry(
                     title=f"AI Agent HA ({PROVIDERS[provider]})",
@@ -537,6 +544,7 @@ class AiAgentHaOptionsFlowHandler(config_entries.OptionsFlow):
                     if "models" not in updated_data:
                         updated_data["models"] = {}
 
+                    # Only update model if user explicitly provided one
                     if custom_model and custom_model.strip():
                         # Use custom model if provided and not empty
                         updated_data["models"][provider] = custom_model.strip()
@@ -544,12 +552,19 @@ class AiAgentHaOptionsFlowHandler(config_entries.OptionsFlow):
                         # Use selected model if it's not the "Custom..." option
                         updated_data["models"][provider] = selected_model
                     else:
-                        # For local, alter, zai, and bedrock providers, allow empty model name
-                        if provider in ("local", "alter", "zai", "bedrock"):
-                            updated_data["models"][provider] = ""
+                        # If no model was selected/changed, preserve the existing model
+                        current_model = current_models.get(provider)
+                        if current_model:
+                            # Keep existing model
+                            updated_data["models"][provider] = current_model
+                            _LOGGER.debug(
+                                f"Preserving existing model for {provider}: {current_model}"
+                            )
                         else:
-                            # Ensure we keep the current model or use default for other providers
-                            if provider not in updated_data["models"]:
+                            # Only set empty/default if there was no existing model
+                            if provider in ("local", "alter", "zai", "bedrock"):
+                                updated_data["models"][provider] = ""
+                            else:
                                 updated_data["models"][provider] = DEFAULT_MODELS[
                                     provider
                                 ]
