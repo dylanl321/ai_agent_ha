@@ -101,8 +101,56 @@ function parseMarkdown(text) {
 function simpleMarkdownParse(text) {
   if (!text) return '';
   
-  // Split into lines for better list handling
-  const lines = text.split('\n');
+  // Escape HTML helper
+  const escapeHtml = (str) => {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  };
+  
+  // Process inline markdown (bold, italic, inline code, links) - but NOT code blocks
+  const processInline = (str) => {
+    let result = escapeHtml(str);
+    
+    // Inline code (single backticks, but not code blocks)
+    result = result.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    
+    // Links
+    result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    
+    // Bold (double asterisk or double underscore)
+    result = result.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+    result = result.replace(/__([^_]+?)__/g, '<strong>$1</strong>');
+    
+    // Italic (single asterisk, but not if part of bold)
+    result = result.replace(/(^|[^*])\*([^*\n]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
+    result = result.replace(/(^|[^_])_([^_\n]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
+    
+    return result;
+  };
+  
+  // First, extract and replace code blocks with placeholders
+  const codeBlockPlaceholders = [];
+  let processedText = text;
+  let placeholderIndex = 0;
+  
+  // Match code blocks (```language\ncode\n``` or ```\ncode\n``` or ```code```)
+  // This regex handles code blocks that may or may not have a language specifier
+  // The regex matches: ``` followed by optional language, optional newline, code content, closing ```
+  processedText = processedText.replace(/```(\w+)?\n?([\s\S]*?)```/g, (match, lang, code) => {
+    const placeholder = `__CODE_BLOCK_${placeholderIndex}__`;
+    // Trim the code content to remove leading/trailing newlines, but preserve internal formatting
+    const trimmedCode = code.trim();
+    const escapedCode = escapeHtml(trimmedCode);
+    codeBlockPlaceholders.push(`<pre><code>${escapedCode}</code></pre>`);
+    placeholderIndex++;
+    // Return placeholder on a single line to ensure it doesn't get split
+    return `\n${placeholder}\n`;
+  });
+  
+  // Now split into lines for processing
+  const lines = processedText.split('\n');
   const processedLines = [];
   let inList = false;
   let listType = null;
@@ -111,35 +159,18 @@ function simpleMarkdownParse(text) {
     const line = lines[i];
     const trimmed = line.trim();
     
-    // Escape HTML first
-    const escapeHtml = (str) => {
-      return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    };
-    
-    // Process inline markdown (bold, italic, code, links)
-    const processInline = (str) => {
-      let result = escapeHtml(str);
-      
-      // Code blocks (before other processing)
-      result = result.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-      result = result.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-      
-      // Links
-      result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-      
-      // Bold (double asterisk or double underscore)
-      result = result.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
-      result = result.replace(/__([^_]+?)__/g, '<strong>$1</strong>');
-      
-      // Italic (single asterisk, but not if part of bold)
-      result = result.replace(/(^|[^*])\*([^*\n]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
-      result = result.replace(/(^|[^_])_([^_\n]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
-      
-      return result;
-    };
+    // Check if this line is a code block placeholder
+    const codeBlockMatch = trimmed.match(/^__CODE_BLOCK_(\d+)__$/);
+    if (codeBlockMatch) {
+      const blockIndex = parseInt(codeBlockMatch[1]);
+      if (inList) {
+        processedLines.push(`</${listType}>`);
+        inList = false;
+        listType = null;
+      }
+      processedLines.push(codeBlockPlaceholders[blockIndex]);
+      continue;
+    }
     
     // Headers
     if (trimmed.startsWith('### ')) {
