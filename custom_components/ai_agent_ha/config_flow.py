@@ -76,7 +76,7 @@ DEFAULT_MODELS = {
     "anthropic": "claude-sonnet-4-5-20250929",
     "alter": "",  # User enters custom model
     "zai": "glm-4.7",  # Z.ai's latest flagship model
-    "bedrock": "global.anthropic.claude-opus-4-5-20251101-v1:0",
+    "bedrock": "us.anthropic.claude-opus-4-5-20251101-v1:0",
     "local": "llama3.2",  # Updated to use llama3.2 as default
 }
 
@@ -154,6 +154,7 @@ AVAILABLE_MODELS = {
     ],
     # AWS Bedrock - available models
     "bedrock": [
+        "us.anthropic.claude-opus-4-5-20251101-v1:0",
         "global.anthropic.claude-opus-4-5-20251101-v1:0",
         "anthropic.claude-3-5-sonnet-20241022-v2:0",
         "anthropic.claude-3-5-haiku-20241022-v2:0",

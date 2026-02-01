@@ -24,7 +24,7 @@ ai_agent_ha:
     anthropic: "claude-sonnet-4-5-20250929"  # or "claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229", etc.
     alter: "your-model-name"  # model name for Alter API
     zai: "glm-4.7"  # model name for z.ai API (glm-4.7, glm-4.6, glm-4.5, etc.)
-    bedrock: "global.anthropic.claude-opus-4-5-20251101-v1:0"  # Bedrock model ID
+    bedrock: "us.anthropic.claude-opus-4-5-20251101-v1:0"  # Bedrock model ID
     local: "llama3.2"  # model name for local API (optional if your API doesn't require it)
 """
 
@@ -909,7 +909,7 @@ class ZaiClient(BaseAIClient):
 
 
 class BedrockClient(BaseAIClient):
-    def __init__(self, access_key_id, secret_access_key, model="global.anthropic.claude-opus-4-5-20251101-v1:0", region="us-east-1"):
+    def __init__(self, access_key_id, secret_access_key, model="us.anthropic.claude-opus-4-5-20251101-v1:0", region="us-east-1"):
         self.access_key_id = access_key_id
         self.secret_access_key = secret_access_key
         self.model = model
@@ -1428,7 +1428,7 @@ class AiAgentHaAgent:
             endpoint_type = config.get("zai_endpoint", "general")
             self.ai_client = ZaiClient(config.get("zai_token"), model, endpoint_type)
         elif provider == "bedrock":
-            model = models_config.get("bedrock", "global.anthropic.claude-opus-4-5-20251101-v1:0")
+            model = models_config.get("bedrock", "us.anthropic.claude-opus-4-5-20251101-v1:0")
             access_key = config.get("bedrock_access_key")
             secret_key = config.get("bedrock_secret_key")
             region = config.get("bedrock_region", "us-east-1")
@@ -2899,7 +2899,7 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                 },
                 "bedrock": {
                     "token_key": "bedrock_access_key",  # Primary key for validation
-                    "model": models_config.get("bedrock", "global.anthropic.claude-opus-4-5-20251101-v1:0"),
+                    "model": models_config.get("bedrock", "us.anthropic.claude-opus-4-5-20251101-v1:0"),
                     "client_class": BedrockClient,
                 },
                 "local": {
