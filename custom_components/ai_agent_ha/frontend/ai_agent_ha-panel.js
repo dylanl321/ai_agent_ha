@@ -3,8 +3,154 @@ import {
   html,
   css,
 } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
+import { unsafeHTML } from "https://unpkg.com/lit-html@1.4.1/directives/unsafe-html.js?module";
 
 console.log("AI Agent HA Panel loading..."); // Debug log
+
+// Enhanced markdown parser with better list and formatting support
+function parseMarkdown(text) {
+  if (!text) return '';
+  
+  // Escape HTML first to prevent XSS
+  const escapeHtml = (str) => {
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return str.replace(/[&<>"']/g, m => map[m]);
+  };
+  
+  // Process inline markdown first (bold, italic, code, links)
+  function processInlineMarkdown(text) {
+    if (!text) return '';
+    let html = text;
+    
+    // Escape HTML
+    html = escapeHtml(html);
+    
+    // Code blocks (before other processing)
+    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    
+    // Bold (double asterisk or double underscore) - process first
+    html = html.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__([^_]+?)__/g, '<strong>$1</strong>');
+    
+    // Italic (single asterisk or single underscore) - only if not already bold
+    // Use a pattern that avoids lookbehind
+    html = html.replace(/(^|[^*])\*([^*\n]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
+    html = html.replace(/(^|[^_])_([^_\n]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
+    
+    return html;
+  }
+  
+  // Split into lines for processing
+  const lines = text.split('\n');
+  const processedLines = [];
+  let inList = false;
+  let listType = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // Headers
+    if (trimmed.startsWith('### ')) {
+      if (inList) {
+        processedLines.push(`</${listType}>`);
+        inList = false;
+        listType = null;
+      }
+      processedLines.push(`<h3>${processInlineMarkdown(trimmed.substring(4))}</h3>`);
+      continue;
+    }
+    if (trimmed.startsWith('## ')) {
+      if (inList) {
+        processedLines.push(`</${listType}>`);
+        inList = false;
+        listType = null;
+      }
+      processedLines.push(`<h2>${processInlineMarkdown(trimmed.substring(3))}</h2>`);
+      continue;
+    }
+    if (trimmed.startsWith('# ')) {
+      if (inList) {
+        processedLines.push(`</${listType}>`);
+        inList = false;
+        listType = null;
+      }
+      processedLines.push(`<h1>${processInlineMarkdown(trimmed.substring(2))}</h1>`);
+      continue;
+    }
+    
+    // Unordered lists (starts with - or *)
+    const ulMatch = trimmed.match(/^[\*\-] (.+)$/);
+    if (ulMatch) {
+      if (!inList || listType !== 'ul') {
+        if (inList) processedLines.push(`</${listType}>`);
+        processedLines.push('<ul>');
+        inList = true;
+        listType = 'ul';
+      }
+      processedLines.push(`<li>${processInlineMarkdown(ulMatch[1])}</li>`);
+      continue;
+    }
+    
+    // Ordered lists
+    const olMatch = trimmed.match(/^\d+\. (.+)$/);
+    if (olMatch) {
+      if (!inList || listType !== 'ol') {
+        if (inList) processedLines.push(`</${listType}>`);
+        processedLines.push('<ol>');
+        inList = true;
+        listType = 'ol';
+      }
+      processedLines.push(`<li>${processInlineMarkdown(olMatch[1])}</li>`);
+      continue;
+    }
+    
+    // End list if we hit a blank line
+    if (inList && trimmed === '') {
+      processedLines.push(`</${listType}>`);
+      inList = false;
+      listType = null;
+      processedLines.push('');
+      continue;
+    }
+    
+    // End list if we hit a non-list line
+    if (inList && !ulMatch && !olMatch) {
+      processedLines.push(`</${listType}>`);
+      inList = false;
+      listType = null;
+    }
+    
+    // Regular line - process inline markdown
+    if (trimmed) {
+      processedLines.push(`<p>${processInlineMarkdown(trimmed)}</p>`);
+    } else {
+      processedLines.push('');
+    }
+  }
+  
+  // Close any open list
+  if (inList) {
+    processedLines.push(`</${listType}>`);
+  }
+  
+  let html = processedLines.join('\n');
+  
+  // Clean up multiple consecutive empty paragraphs
+  html = html.replace(/(<p><\/p>\n?)+/g, '<p></p>');
+  
+  return html;
+}
 
 const PROVIDERS = {
   openai: "OpenAI",
@@ -254,6 +400,71 @@ class AiAgentHaPanel extends LitElement {
         background: var(--secondary-background-color);
         margin-right: auto;
         border-bottom-left-radius: 4px;
+      }
+      .message-content {
+        word-wrap: break-word;
+      }
+      .message-content h1,
+      .message-content h2,
+      .message-content h3 {
+        margin: 12px 0 8px 0;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      .message-content h1 {
+        font-size: 1.5em;
+        border-bottom: 2px solid var(--divider-color);
+        padding-bottom: 8px;
+      }
+      .message-content h2 {
+        font-size: 1.3em;
+      }
+      .message-content h3 {
+        font-size: 1.1em;
+      }
+      .message-content p {
+        margin: 8px 0;
+        line-height: 1.6;
+      }
+      .message-content ul,
+      .message-content ol {
+        margin: 8px 0;
+        padding-left: 24px;
+        line-height: 1.6;
+      }
+      .message-content li {
+        margin: 4px 0;
+      }
+      .message-content code {
+        background: var(--code-background-color, rgba(0, 0, 0, 0.1));
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+      }
+      .message-content pre {
+        background: var(--code-background-color, rgba(0, 0, 0, 0.1));
+        padding: 12px;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 12px 0;
+      }
+      .message-content pre code {
+        background: none;
+        padding: 0;
+      }
+      .message-content a {
+        color: var(--primary-color, #03a9f4);
+        text-decoration: none;
+      }
+      .message-content a:hover {
+        text-decoration: underline;
+      }
+      .message-content strong {
+        font-weight: 600;
+      }
+      .message-content em {
+        font-style: italic;
       }
       .input-container {
         position: relative;
@@ -970,7 +1181,12 @@ class AiAgentHaPanel extends LitElement {
           <div class="messages" id="messages">
             ${this._messages.map(msg => html`
               <div class="message ${msg.type}-message">
-                ${msg.text}
+                <div class="message-content">
+                  ${msg.type === 'assistant' 
+                    ? unsafeHTML(parseMarkdown(msg.text))
+                    : msg.text
+                  }
+                </div>
                 ${msg.automation ? html`
                   <div class="automation-suggestion">
                     <div class="automation-title">${msg.automation.alias}</div>
@@ -1022,7 +1238,11 @@ class AiAgentHaPanel extends LitElement {
               </div>
             ` : ''}
             ${this._error ? html`
-              <div class="error">${this._error}</div>
+              <div class="error">
+                <div class="message-content">
+                  ${unsafeHTML(parseMarkdown(this._error))}
+                </div>
+              </div>
             ` : ''}
             ${this._showThinking ? this._renderThinkingPanel() : ''}
           </div>
