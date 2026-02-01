@@ -2,7 +2,7 @@
 
 Example config:
 ai_agent_ha:
-  ai_provider: openai  # or 'llama', 'gemini', 'openrouter', 'anthropic', 'alter', 'zai', 'local'
+  ai_provider: openai  # or 'llama', 'gemini', 'openrouter', 'anthropic', 'alter', 'zai', 'bedrock', 'local'
   llama_token: "..."
   openai_token: "..."
   gemini_token: "..."
@@ -11,6 +11,9 @@ ai_agent_ha:
   alter_token: "..."
   zai_token: "..."
   zai_endpoint: "general"  # or 'coding' for z.ai (3× usage, 1/7 cost)
+  bedrock_access_key: "..."  # AWS access key ID for Bedrock
+  bedrock_secret_key: "..."  # AWS secret access key for Bedrock
+  bedrock_region: "us-east-1"  # AWS region (optional, defaults to us-east-1)
   local_url: "http://localhost:11434/api/generate"  # Required for local models
   # Model configuration (optional, defaults will be used if not specified)
   models:
@@ -21,6 +24,7 @@ ai_agent_ha:
     anthropic: "claude-sonnet-4-5-20250929"  # or "claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229", etc.
     alter: "your-model-name"  # model name for Alter API
     zai: "glm-4.7"  # model name for z.ai API (glm-4.7, glm-4.6, glm-4.5, etc.)
+    bedrock: "anthropic.claude-3-5-sonnet-20241022-v2:0"  # Bedrock model ID
     local: "llama3.2"  # model name for local API (optional if your API doesn't require it)
 """
 
@@ -904,6 +908,186 @@ class ZaiClient(BaseAIClient):
                 return str(data)
 
 
+class BedrockClient(BaseAIClient):
+    def __init__(self, access_key_id, secret_access_key, model="anthropic.claude-3-5-sonnet-20241022-v2:0", region="us-east-1"):
+        self.access_key_id = access_key_id
+        self.secret_access_key = secret_access_key
+        self.model = model
+        self.region = region
+
+    def _get_model_family(self):
+        """Determine the model family from the model ID."""
+        model_lower = self.model.lower()
+        if "claude" in model_lower or "anthropic" in model_lower:
+            return "claude"
+        elif "llama" in model_lower or "meta" in model_lower:
+            return "llama"
+        elif "titan" in model_lower or "amazon" in model_lower:
+            return "titan"
+        elif "mistral" in model_lower:
+            return "mistral"
+        elif "cohere" in model_lower:
+            return "cohere"
+        else:
+            # Default to Claude format for unknown models
+            return "claude"
+
+    def _format_messages_for_bedrock(self, messages):
+        """Convert OpenAI-style messages to Bedrock format based on model family."""
+        model_family = self._get_model_family()
+        
+        if model_family == "claude":
+            # Claude uses Anthropic message format
+            system_message = None
+            anthropic_messages = []
+            
+            for message in messages:
+                role = message.get("role", "")
+                content = message.get("content", "")
+                
+                if role == "system":
+                    system_message = content
+                elif role == "user":
+                    anthropic_messages.append({"role": "user", "content": content})
+                elif role == "assistant":
+                    anthropic_messages.append({"role": "assistant", "content": content})
+            
+            return {
+                "system": system_message,
+                "messages": anthropic_messages
+            }
+        elif model_family in ["llama", "mistral", "cohere"]:
+            # These models use OpenAI-compatible format
+            return {
+                "messages": messages
+            }
+        elif model_family == "titan":
+            # Titan uses a specific format
+            input_text = ""
+            for message in messages:
+                role = message.get("role", "")
+                content = message.get("content", "")
+                if role == "system":
+                    input_text += f"System: {content}\n\n"
+                elif role == "user":
+                    input_text += f"User: {content}\n\n"
+                elif role == "assistant":
+                    input_text += f"Assistant: {content}\n\n"
+            return {
+                "inputText": input_text
+            }
+        else:
+            # Default to Claude format
+            return self._format_messages_for_bedrock(messages)
+
+    async def get_response(self, messages, **kwargs):
+        """Get response from AWS Bedrock."""
+        _LOGGER.debug("Making request to AWS Bedrock API with model: %s, region: %s", self.model, self.region)
+        
+        try:
+            import boto3
+            from botocore.exceptions import ClientError, BotoCoreError
+        except ImportError:
+            raise Exception("boto3 is required for AWS Bedrock support. Please install it: pip install boto3>=1.28.0")
+        
+        # Create boto3 client (synchronous, but we'll run it in executor)
+        def create_client():
+            return boto3.client(
+                'bedrock-runtime',
+                aws_access_key_id=self.access_key_id,
+                aws_secret_access_key=self.secret_access_key,
+                region_name=self.region
+            )
+        
+        # Run client creation in executor
+        loop = asyncio.get_event_loop()
+        bedrock_client = await loop.run_in_executor(None, create_client)
+        
+        model_family = self._get_model_family()
+        formatted_messages = self._format_messages_for_bedrock(messages)
+        
+        # Build request body based on model family
+        if model_family == "claude":
+            request_body = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 8192,
+                **formatted_messages
+            }
+            # Remove system if None
+            if request_body.get("system") is None:
+                request_body.pop("system", None)
+        elif model_family in ["llama", "mistral", "cohere"]:
+            request_body = {
+                "messages": formatted_messages["messages"],
+                "temperature": 0.7,
+                "top_p": 0.9,
+            }
+        elif model_family == "titan":
+            request_body = {
+                "inputText": formatted_messages["inputText"],
+                "textGenerationConfig": {
+                    "maxTokenCount": 4096,
+                    "temperature": 0.7,
+                    "topP": 0.9,
+                }
+            }
+        else:
+            request_body = formatted_messages
+        
+        _LOGGER.debug("Bedrock request body: %s", json.dumps(request_body, indent=2))
+        
+        # Invoke model (synchronous, run in executor)
+        def invoke_model():
+            try:
+                response = bedrock_client.invoke_model(
+                    modelId=self.model,
+                    body=json.dumps(request_body)
+                )
+                return response
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                error_message = e.response.get('Error', {}).get('Message', str(e))
+                _LOGGER.error("AWS Bedrock API error [%s]: %s", error_code, error_message)
+                raise Exception(f"AWS Bedrock API error [{error_code}]: {error_message}")
+            except BotoCoreError as e:
+                _LOGGER.error("AWS Bedrock client error: %s", str(e))
+                raise Exception(f"AWS Bedrock client error: {str(e)}")
+        
+        try:
+            response = await loop.run_in_executor(None, invoke_model)
+            response_body = json.loads(response['body'].read())
+            
+            _LOGGER.debug("Bedrock response: %s", json.dumps(response_body, indent=2)[:500])
+            
+            # Extract text based on model family
+            if model_family == "claude":
+                # Claude response format
+                if "content" in response_body:
+                    content_blocks = response_body["content"]
+                    if isinstance(content_blocks, list) and len(content_blocks) > 0:
+                        text_content = content_blocks[0].get("text", "")
+                        if text_content:
+                            return text_content
+                return str(response_body)
+            elif model_family in ["llama", "mistral", "cohere"]:
+                # OpenAI-compatible format
+                if "choices" in response_body and len(response_body["choices"]) > 0:
+                    message = response_body["choices"][0].get("message", {})
+                    return message.get("content", str(response_body))
+                return str(response_body)
+            elif model_family == "titan":
+                # Titan response format
+                if "results" in response_body and len(response_body["results"]) > 0:
+                    return response_body["results"][0].get("outputText", str(response_body))
+                return str(response_body)
+            else:
+                return str(response_body)
+                
+        except Exception as e:
+            _LOGGER.exception("Error invoking Bedrock model: %s", str(e))
+            raise Exception(f"Error invoking Bedrock model: {str(e)}")
+
+
 # === Main Agent ===
 class AiAgentHaAgent:
     """Agent for handling queries with dynamic data requests and multiple AI providers."""
@@ -911,7 +1095,20 @@ class AiAgentHaAgent:
     SYSTEM_PROMPT = {
         "role": "system",
         "content": (
-            "You are an AI assistant integrated with Home Assistant.\n"
+            "You are an AI assistant integrated with Home Assistant. Your goal is to help users control their smart home, create automations, and manage dashboards through natural language.\n\n"
+            "CONTEXT AWARENESS AND ENTITY UNDERSTANDING:\n"
+            "- Understand entity relationships: entities belong to devices, devices belong to areas/rooms, areas can be on floors\n"
+            "- When a user mentions a room/area name, first use get_area_registry() to find the area_id, then use get_entities_by_area() to find entities\n"
+            "- Use entity attributes effectively: device_class (temperature, humidity, motion, etc.), state_class, unit_of_measurement help identify entity types\n"
+            "- Infer user intent from context: 'turn on lights' likely means all lights in the current context, 'set temperature' likely means climate entities\n"
+            "- When requests are ambiguous, ask clarifying questions using a final_response before taking action\n"
+            "- Remember entity states and recent actions from conversation history to provide better context\n\n"
+            "ERROR HANDLING AND USER GUIDANCE:\n"
+            "- If an entity is not found, explain what went wrong and suggest alternatives (e.g., 'Entity light.living_room not found. Did you mean light.living_room_main?')\n"
+            "- If a service call fails, explain the error clearly and suggest how to fix it (e.g., 'Cannot turn on light.living_room because it's unavailable. Check if the device is online.')\n"
+            "- Before making service calls, validate that entities exist by checking their state first when possible\n"
+            "- When suggesting automations or dashboards, explain what they will do and ask for confirmation\n"
+            "- If a requested operation isn't possible, explain why and suggest alternatives\n\n"
             "You can request specific data by using only these commands:\n"
             "- get_entity_state(entity_id): Get state of a specific entity\n"
             "- get_entities_by_domain(domain): Get all entities in a domain\n"
@@ -1019,14 +1216,38 @@ class AiAgentHaAgent:
             "- Use the 'message' field inside the JSON for user-facing text\n"
             "- NEVER mix regular text with JSON in your response\n\n"
             "WRONG: 'I'll create this for you. {\"request_type\": ...}'\n"
-            'CORRECT: \'{"request_type": "dashboard_suggestion", "message": "I\'ll create this for you.", ...}\''
+            'CORRECT: \'{"request_type": "dashboard_suggestion", "message": "I\'ll create this for you.", ...}\'\n\n'
+            "CONVERSATION HISTORY AND PROACTIVE SUGGESTIONS:\n"
+            "- Use conversation history to understand context and avoid repeating information the user already provided\n"
+            "- When appropriate, provide proactive suggestions (e.g., 'I notice you have several lights. Would you like me to create an automation to turn them on at sunset?')\n"
+            "- Before executing actions, briefly explain what you're about to do (e.g., 'I'll turn on the living room lights for you.')\n"
+            "- After completing complex operations, summarize what was done (e.g., 'I've created a security dashboard with 5 motion sensors, 3 door sensors, and 2 cameras.')\n"
+            "- If a user's request could have multiple interpretations, ask for clarification before proceeding\n\n"
+            "EDGE CASE HANDLING:\n"
+            "- If an entity doesn't exist: Check for similar entity names, suggest alternatives, or ask the user to verify the entity ID\n"
+            "- If a service call fails: Explain the error, check entity state, and suggest troubleshooting steps\n"
+            "- If no entities match a request: Use get_entity_registry() to show available entities and help the user find what they need\n"
+            "- If an automation/dashboard creation fails: Explain what went wrong, validate the configuration, and suggest fixes\n"
         ),
     }
 
     SYSTEM_PROMPT_LOCAL = {
         "role": "system",
         "content": (
-            "You are an AI assistant integrated with Home Assistant.\n"
+            "You are an AI assistant integrated with Home Assistant. Your goal is to help users control their smart home, create automations, and manage dashboards through natural language.\n\n"
+            "CONTEXT AWARENESS AND ENTITY UNDERSTANDING:\n"
+            "- Understand entity relationships: entities belong to devices, devices belong to areas/rooms, areas can be on floors\n"
+            "- When a user mentions a room/area name, first use get_area_registry() to find the area_id, then use get_entities_by_area() to find entities\n"
+            "- Use entity attributes effectively: device_class (temperature, humidity, motion, etc.), state_class, unit_of_measurement help identify entity types\n"
+            "- Infer user intent from context: 'turn on lights' likely means all lights in the current context, 'set temperature' likely means climate entities\n"
+            "- When requests are ambiguous, ask clarifying questions using a final_response before taking action\n"
+            "- Remember entity states and recent actions from conversation history to provide better context\n\n"
+            "ERROR HANDLING AND USER GUIDANCE:\n"
+            "- If an entity is not found, explain what went wrong and suggest alternatives (e.g., 'Entity light.living_room not found. Did you mean light.living_room_main?')\n"
+            "- If a service call fails, explain the error clearly and suggest how to fix it (e.g., 'Cannot turn on light.living_room because it's unavailable. Check if the device is online.')\n"
+            "- Before making service calls, validate that entities exist by checking their state first when possible\n"
+            "- When suggesting automations or dashboards, explain what they will do and ask for confirmation\n"
+            "- If a requested operation isn't possible, explain why and suggest alternatives\n\n"
             "You can request specific data by using only these commands:\n"
             "- get_entity_state(entity_id): Get state of a specific entity\n"
             "- get_entities_by_domain(domain): Get all entities in a domain\n"
@@ -1109,8 +1330,12 @@ class AiAgentHaAgent:
             '  "request": "command_name",\n'
             '  "parameters": {...}\n'
             "}\n"
-            'For get_entities with multiple areas: {"request_type": "get_entities", "parameters": {"area_ids": ["area1", "area2"]}}\n'
-            'For get_entities with single area: {"request_type": "get_entities", "parameters": {"area_id": "single_area"}}\n\n'
+            "Examples:\n"
+            '- Get single entity: {"request_type": "data_request", "request": "get_entity_state", "parameters": {"entity_id": "light.living_room"}}\n'
+            '- Get all lights: {"request_type": "data_request", "request": "get_entities_by_domain", "parameters": {"domain": "light"}}\n'
+            '- Get temperature sensors: {"request_type": "data_request", "request": "get_entities_by_device_class", "parameters": {"device_class": "temperature", "domain": "sensor"}}\n'
+            '- Get entities from multiple areas: {"request_type": "data_request", "request": "get_entities", "parameters": {"area_ids": ["area1", "area2"]}}\n'
+            '- Get entities from single area: {"request_type": "data_request", "request": "get_entities", "parameters": {"area_id": "living_room"}}\n\n'
             "For service calls, use this exact JSON format:\n"
             "{\n"
             '  "request_type": "call_service",\n'
@@ -1118,7 +1343,11 @@ class AiAgentHaAgent:
             '  "service": "turn_on",\n'
             '  "target": {"entity_id": ["entity1", "entity2"]},\n'
             '  "service_data": {"brightness": 255}\n'
-            "}\n\n"
+            "}\n"
+            "Examples:\n"
+            '- Turn on light: {"request_type": "call_service", "domain": "light", "service": "turn_on", "target": {"entity_id": ["light.living_room"]}}\n'
+            '- Set temperature: {"request_type": "call_service", "domain": "climate", "service": "set_temperature", "target": {"entity_id": ["climate.thermostat"]}, "service_data": {"temperature": 72}}\n'
+            '- Turn on multiple lights with brightness: {"request_type": "call_service", "domain": "light", "service": "turn_on", "target": {"entity_id": ["light.living_room", "light.kitchen"]}, "service_data": {"brightness": 200}}\n\n'
             "For answering questions (NOT creating dashboards/automations):\n"
             "{\n"
             '  "request_type": "final_response",\n'
@@ -1134,7 +1363,18 @@ class AiAgentHaAgent:
             "- Use the 'message' field inside the JSON for user-facing text\n"
             "- NEVER mix regular text with JSON in your response\n\n"
             "WRONG: 'I'll create this for you. {\"request_type\": ...}'\n"
-            'CORRECT: \'{"request_type": "dashboard_suggestion", "message": "I\'ll create this for you.", ...}\''
+            'CORRECT: \'{"request_type": "dashboard_suggestion", "message": "I\'ll create this for you.", ...}\'\n\n'
+            "CONVERSATION HISTORY AND PROACTIVE SUGGESTIONS:\n"
+            "- Use conversation history to understand context and avoid repeating information the user already provided\n"
+            "- When appropriate, provide proactive suggestions (e.g., 'I notice you have several lights. Would you like me to create an automation to turn them on at sunset?')\n"
+            "- Before executing actions, briefly explain what you're about to do (e.g., 'I'll turn on the living room lights for you.')\n"
+            "- After completing complex operations, summarize what was done (e.g., 'I've created a security dashboard with 5 motion sensors, 3 door sensors, and 2 cameras.')\n"
+            "- If a user's request could have multiple interpretations, ask for clarification before proceeding\n\n"
+            "EDGE CASE HANDLING:\n"
+            "- If an entity doesn't exist: Check for similar entity names, suggest alternatives, or ask the user to verify the entity ID\n"
+            "- If a service call fails: Explain the error, check entity state, and suggest troubleshooting steps\n"
+            "- If no entities match a request: Use get_entity_registry() to show available entities and help the user find what they need\n"
+            "- If an automation/dashboard creation fails: Explain what went wrong, validate the configuration, and suggest fixes\n"
         ),
     }
 
@@ -1187,6 +1427,15 @@ class AiAgentHaAgent:
             model = models_config.get("zai", "glm-4.7")
             endpoint_type = config.get("zai_endpoint", "general")
             self.ai_client = ZaiClient(config.get("zai_token"), model, endpoint_type)
+        elif provider == "bedrock":
+            model = models_config.get("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+            access_key = config.get("bedrock_access_key")
+            secret_key = config.get("bedrock_secret_key")
+            region = config.get("bedrock_region", "us-east-1")
+            if not access_key or not secret_key:
+                _LOGGER.error("Missing Bedrock credentials")
+                raise Exception("Missing Bedrock credentials (access_key and secret_key required)")
+            self.ai_client = BedrockClient(access_key, secret_key, model, region)
         elif provider == "local":
             model = models_config.get("local", "")
             url = config.get("local_url")
@@ -1220,6 +1469,17 @@ class AiAgentHaAgent:
             token = self.config.get("alter_token")
         elif provider == "zai":
             token = self.config.get("zai_token")
+        elif provider == "bedrock":
+            # Bedrock requires both access key and secret key
+            access_key = self.config.get("bedrock_access_key")
+            secret_key = self.config.get("bedrock_secret_key")
+            if not access_key or not secret_key:
+                return False
+            if not isinstance(access_key, str) or not isinstance(secret_key, str):
+                return False
+            # AWS access key IDs are typically 20 characters, but can vary
+            # Secret keys are typically 40 characters
+            return len(access_key) >= 16 and len(secret_key) >= 16
         elif provider == "local":
             token = self.config.get("local_url")
         else:
@@ -2637,6 +2897,11 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                     "model": models_config.get("zai", ""),
                     "client_class": ZaiClient,
                 },
+                "bedrock": {
+                    "token_key": "bedrock_access_key",  # Primary key for validation
+                    "model": models_config.get("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+                    "client_class": BedrockClient,
+                },
                 "local": {
                     "token_key": "local_url",
                     "model": models_config.get("local", ""),
@@ -2664,8 +2929,16 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                     )
                 return result
 
-            # Validate token/URL
-            if not token:
+            # Validate token/URL/credentials
+            if selected_provider == "bedrock":
+                # Bedrock requires both access key and secret key
+                access_key = config.get("bedrock_access_key")
+                secret_key = config.get("bedrock_secret_key")
+                if not access_key or not secret_key:
+                    error_msg = "No credentials configured for provider bedrock (access_key and secret_key required)"
+                    _LOGGER.error(error_msg)
+                    return _with_debug({"success": False, "error": error_msg})
+            elif not token:
                 error_msg = f"No {'URL' if selected_provider == 'local' else 'token'} configured for provider {selected_provider}"
                 _LOGGER.error(error_msg)
                 return _with_debug({"success": False, "error": error_msg})
@@ -2682,6 +2955,20 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                     )
                     _LOGGER.debug(
                         f"Initialized {selected_provider} client with model {provider_settings['model']}, endpoint_type {endpoint_type}"
+                    )
+                elif selected_provider == "bedrock":
+                    # BedrockClient takes (access_key_id, secret_access_key, model, region)
+                    access_key = config.get("bedrock_access_key")
+                    secret_key = config.get("bedrock_secret_key")
+                    region = config.get("bedrock_region", "us-east-1")
+                    self.ai_client = provider_settings["client_class"](
+                        access_key_id=access_key,
+                        secret_access_key=secret_key,
+                        model=provider_settings["model"],
+                        region=region,
+                    )
+                    _LOGGER.debug(
+                        f"Initialized {selected_provider} client with model {provider_settings['model']}, region {region}"
                     )
                 elif selected_provider == "local":
                     # LocalClient takes (url, model)

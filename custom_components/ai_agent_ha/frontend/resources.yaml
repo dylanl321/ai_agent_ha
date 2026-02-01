@@ -1,0 +1,8 @@
+# Frontend resources for AI Agent HA
+# This file registers the FAB and card components globally
+
+resources:
+  - url: /local/ai_agent_ha/frontend/ai_agent_ha-fab.js
+    type: module
+  - url: /local/ai_agent_ha/frontend/ai_agent_ha-card.js
+    type: module

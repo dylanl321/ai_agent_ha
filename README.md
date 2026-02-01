@@ -22,7 +22,7 @@ Another way to support me will be to try my new project. Askie - AI for kids. I 
 
 ## ✨ Features
 
-- 🤖 **Multiple AI Provider Support**: OpenAI, Google Gemini, Anthropic (Claude), OpenRouter, Alter, z.ai, and Llama
+- 🤖 **Multiple AI Provider Support**: OpenAI, Google Gemini, Anthropic (Claude), OpenRouter, Alter, z.ai, AWS Bedrock, and Llama
 - 🎯 **Model Selection**: Choose from predefined models or use custom model names
 - 🏠 **Smart Home Control**: Turn lights on/off, control climate, and manage devices
 - ⚡ **Automation Creation**: Automatically create automations based on natural language
@@ -139,6 +139,25 @@ For detailed dashboard creation documentation, see: [Dashboard Creation Guide](d
   - `glm-4.7` (Latest flagship model)
   - `glm-4.5-flash` (Fast and efficient)
 
+### AWS Bedrock
+- **Models**: Access to foundation models from Anthropic (Claude), Meta (Llama), Amazon (Titan), Mistral, and Cohere
+- **Setup**: 
+  1. Sign in to [AWS Bedrock Console](https://console.aws.amazon.com/bedrock/)
+  2. Request access to foundation models
+  3. Create IAM user with programmatic access
+  4. Generate Access Key ID and Secret Access Key
+  5. Ensure the IAM user has `bedrock:InvokeModel` permission
+- **Popular Models**:
+  - `anthropic.claude-3-5-sonnet-20241022-v2:0` (Latest Claude Sonnet - most capable)
+  - `anthropic.claude-3-5-haiku-20241022-v2:0` (Fast and efficient Claude)
+  - `anthropic.claude-3-opus-20240229-v1:0` (Most powerful Claude for complex tasks)
+  - `meta.llama3-70b-instruct-v1:0` (Meta Llama 3 70B)
+  - `meta.llama3.1-70b-instruct-v1:0` (Meta Llama 3.1 70B)
+  - `amazon.titan-text-express-v1` (Amazon Titan)
+  - `mistral.mistral-large-2402-v1:0` (Mistral Large)
+- **Configuration**: Requires AWS Access Key ID, Secret Access Key, and region (defaults to us-east-1)
+- **Note**: Model availability varies by AWS region. Ensure your selected model is available in your chosen region.
+
 ## 📦 Installation
 
 ### HACS Installation (Recommended)
@@ -181,6 +200,7 @@ Select your preferred AI provider from the dropdown:
 - OpenRouter
 - Alter
 - z.ai
+- AWS Bedrock
 - Llama
 - Local Model
 
@@ -219,12 +239,51 @@ ai_agent_ha:
     alter: "your-model-name"
 ```
 
+```yaml
+# Example with AWS Bedrock provider
+ai_agent_ha:
+  ai_provider: bedrock
+  bedrock_access_key: "AKIAIOSFODNN7EXAMPLE"
+  bedrock_secret_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  bedrock_region: "us-east-1"  # Optional, defaults to us-east-1
+  models:
+    bedrock: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+```
+
 ## 🎮 Usage
 
 ### Chat Interface
 Access the beautiful chat interface at:
 - **Sidebar**: AI Agent HA panel
 - **URL**: `http://your-ha-instance:8123/ai_agent_ha`
+
+### Global Access (New!)
+Access the AI assistant from **any page** in Home Assistant:
+
+#### Floating Action Button (FAB)
+A floating chat button that appears on all pages:
+1. Go to **Settings** → **Dashboards** → **Resources**
+2. Add **TWO** resources:
+   - `/local/ai_agent_ha/frontend/ai_agent_ha-fab.js` (type: JavaScript Module)
+   - `/local/ai_agent_ha/frontend/ai_agent_ha-global.js` (type: JavaScript Module)
+3. The FAB will automatically appear as a floating button on all pages
+
+#### Lovelace Card
+Add the AI assistant as a card to any dashboard:
+1. Add Resource: `/local/ai_agent_ha/frontend/ai_agent_ha-card.js` (type: JavaScript Module)
+2. Add card to dashboard:
+   ```yaml
+   type: custom:ai-agent-ha-card
+   title: AI Assistant
+   show_quick_actions: true
+   ```
+
+**Quick Actions Available:**
+- Create Automation
+- Create Scene
+- Show Devices/Lights
+
+For detailed setup instructions, see: [UI Enhancements Guide](docs/UI_ENHANCEMENTS.md)
 
 
 
@@ -238,6 +297,7 @@ Enter any model name in the "Custom Model" field:
 - Gemini: `gemini-pro-vision`
 - Alter: `your-custom-model-name`
 - z.ai: `glm-4.7`
+- AWS Bedrock: `anthropic.claude-3-5-sonnet-20241022-v2:0`, `meta.llama3-70b-instruct-v1:0`
 - Llama: `Llama-4-Maverick-17B-128E-Instruct-FP8`
 
 ### Automation Creation

@@ -12,6 +12,9 @@ CONF_OPENROUTER_TOKEN = "openrouter_token"  # nosec B105
 CONF_ANTHROPIC_TOKEN = "anthropic_token"  # nosec B105
 CONF_ALTER_TOKEN = "alter_token"  # nosec B105
 CONF_ZAI_TOKEN = "zai_token"  # nosec B105
+CONF_BEDROCK_ACCESS_KEY = "bedrock_access_key"  # nosec B105
+CONF_BEDROCK_SECRET_KEY = "bedrock_secret_key"  # nosec B105
+CONF_BEDROCK_REGION = "bedrock_region"
 CONF_LOCAL_URL = "local_url"
 CONF_LOCAL_MODEL = "local_model"
 
@@ -24,6 +27,7 @@ AI_PROVIDERS = [
     "anthropic",
     "alter",
     "zai",
+    "bedrock",
     "local",
 ]
 

@@ -15,7 +15,14 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
 )
 
-from .const import CONF_LOCAL_MODEL, CONF_LOCAL_URL, DOMAIN
+from .const import (
+    CONF_BEDROCK_ACCESS_KEY,
+    CONF_BEDROCK_REGION,
+    CONF_BEDROCK_SECRET_KEY,
+    CONF_LOCAL_MODEL,
+    CONF_LOCAL_URL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +34,7 @@ PROVIDERS = {
     "anthropic": "Anthropic (Claude)",
     "alter": "Alter",
     "zai": "z.ai",
+    "bedrock": "AWS Bedrock",
     "local": "Local Model",
 }
 
@@ -39,6 +47,9 @@ TOKEN_FIELD_NAMES = {
     "alter": "alter_token",
     "zai": "zai_token",
     "zai_endpoint": "zai_endpoint",
+    "bedrock": CONF_BEDROCK_ACCESS_KEY,  # Bedrock uses access key (secret key handled separately)
+    "bedrock_secret": CONF_BEDROCK_SECRET_KEY,  # Separate field for secret key
+    "bedrock_region": CONF_BEDROCK_REGION,  # Region field
     "local": CONF_LOCAL_URL,  # For local models, we use URL instead of token
 }
 
@@ -51,6 +62,9 @@ TOKEN_LABELS = {
     "alter": "Alter API Key",
     "zai": "z.ai API Key",
     "zai_endpoint": "z.ai API Endpoint Type",
+    "bedrock": "AWS Access Key ID",
+    "bedrock_secret": "AWS Secret Access Key",
+    "bedrock_region": "AWS Region",
     "local": "Local API URL (e.g., http://localhost:11434/api/generate)",
 }
 
@@ -62,6 +76,7 @@ DEFAULT_MODELS = {
     "anthropic": "claude-sonnet-4-5-20250929",
     "alter": "",  # User enters custom model
     "zai": "glm-4.7",  # Z.ai's latest flagship model
+    "bedrock": "anthropic.claude-3-5-sonnet-20241022-v2:0",
     "local": "llama3.2",  # Updated to use llama3.2 as default
 }
 
@@ -137,6 +152,26 @@ AVAILABLE_MODELS = {
         "glm-4-32b-0414-128k",
         "Custom...",
     ],
+    # AWS Bedrock - available models
+    "bedrock": [
+        "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "anthropic.claude-3-5-haiku-20241022-v2:0",
+        "anthropic.claude-3-opus-20240229-v1:0",
+        "anthropic.claude-3-sonnet-20240229-v1:0",
+        "anthropic.claude-3-haiku-20240307-v1:0",
+        "meta.llama3-70b-instruct-v1:0",
+        "meta.llama3-8b-instruct-v1:0",
+        "meta.llama3.1-70b-instruct-v1:0",
+        "meta.llama3.1-8b-instruct-v1:0",
+        "amazon.titan-text-lite-v1",
+        "amazon.titan-text-express-v1",
+        "mistral.mistral-large-2402-v1:0",
+        "mistral.mistral-medium-2312-v1:0",
+        "mistral.mistral-small-2402-v1:0",
+        "cohere.command-text-v14",
+        "cohere.command-light-text-v14",
+        "Custom...",
+    ],
     # For local models, provide common Ollama models with llama3.2 as the default
     "local": [
         "llama3.2",
@@ -209,14 +244,29 @@ class AiAgentHaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
 
         if user_input is not None:
             try:
-                # Validate the token
-                token_value = user_input.get(token_field)
-                if not token_value:
-                    errors[token_field] = "required"
-                    raise InvalidApiKey
-
-                # Store the configuration data
-                self.config_data[token_field] = token_value
+                # Validate the token (or credentials for Bedrock)
+                if provider == "bedrock":
+                    # Bedrock requires both access key and secret key
+                    access_key = user_input.get(CONF_BEDROCK_ACCESS_KEY)
+                    secret_key = user_input.get(CONF_BEDROCK_SECRET_KEY)
+                    if not access_key:
+                        errors[CONF_BEDROCK_ACCESS_KEY] = "required"
+                        raise InvalidApiKey
+                    if not secret_key:
+                        errors[CONF_BEDROCK_SECRET_KEY] = "required"
+                        raise InvalidApiKey
+                    self.config_data[CONF_BEDROCK_ACCESS_KEY] = access_key
+                    self.config_data[CONF_BEDROCK_SECRET_KEY] = secret_key
+                    # Store region (optional, defaults to us-east-1)
+                    region = user_input.get(CONF_BEDROCK_REGION, "us-east-1")
+                    self.config_data[CONF_BEDROCK_REGION] = region
+                else:
+                    token_value = user_input.get(token_field)
+                    if not token_value:
+                        errors[token_field] = "required"
+                        raise InvalidApiKey
+                    # Store the configuration data
+                    self.config_data[token_field] = token_value
 
                 # For z.ai, store endpoint type
                 if provider == "zai":
@@ -242,8 +292,8 @@ class AiAgentHaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                     # Use selected model if it's not the "Custom..." option
                     self.config_data["models"][provider] = selected_model
                 else:
-                    # For local and alter providers, allow empty model name
-                    if provider in ("local", "alter", "zai"):
+                    # For local, alter, zai, and bedrock providers, allow empty model name
+                    if provider in ("local", "alter", "zai", "bedrock"):
                         self.config_data["models"][provider] = ""
                     else:
                         # Fallback to default model for other providers
@@ -288,6 +338,37 @@ class AiAgentHaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                 errors=errors,
                 description_placeholders={
                     "token_label": token_label,
+                    "provider": PROVIDERS[provider],
+                },
+            )
+
+        if provider == "bedrock":
+            # For Bedrock provider, we need access key, secret key, optional region, and optional model
+            model_options = AVAILABLE_MODELS.get("bedrock", ["Custom..."])
+            schema_dict = {
+                vol.Required(CONF_BEDROCK_ACCESS_KEY): TextSelector(
+                    TextSelectorConfig(type="password")
+                ),
+                vol.Required(CONF_BEDROCK_SECRET_KEY): TextSelector(
+                    TextSelectorConfig(type="password")
+                ),
+                vol.Optional(CONF_BEDROCK_REGION, default="us-east-1"): TextSelector(
+                    TextSelectorConfig(type="text")
+                ),
+                vol.Optional("model", default=default_model): SelectSelector(
+                    SelectSelectorConfig(options=model_options)
+                ),
+                vol.Optional("custom_model"): TextSelector(
+                    TextSelectorConfig(type="text")
+                ),
+            }
+
+            return self.async_show_form(
+                step_id="configure",
+                data_schema=vol.Schema(schema_dict),
+                errors=errors,
+                description_placeholders={
+                    "token_label": "AWS Credentials",
                     "provider": PROVIDERS[provider],
                 },
             )
@@ -414,15 +495,33 @@ class AiAgentHaOptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             try:
-                token_value = user_input.get(token_field)
-                if not token_value:
-                    errors[token_field] = "required"
+                # Handle Bedrock separately (needs two credentials)
+                if provider == "bedrock":
+                    access_key = user_input.get(CONF_BEDROCK_ACCESS_KEY)
+                    secret_key = user_input.get(CONF_BEDROCK_SECRET_KEY)
+                    if not access_key:
+                        errors[CONF_BEDROCK_ACCESS_KEY] = "required"
+                    if not secret_key:
+                        errors[CONF_BEDROCK_SECRET_KEY] = "required"
+                    if access_key and secret_key:
+                        # Prepare the updated configuration
+                        updated_data = dict(self.config_entry.data)
+                        updated_data["ai_provider"] = provider
+                        updated_data[CONF_BEDROCK_ACCESS_KEY] = access_key
+                        updated_data[CONF_BEDROCK_SECRET_KEY] = secret_key
+                        region = user_input.get(CONF_BEDROCK_REGION, "us-east-1")
+                        updated_data[CONF_BEDROCK_REGION] = region
                 else:
-                    # Prepare the updated configuration
-                    updated_data = dict(self.config_entry.data)
-                    updated_data["ai_provider"] = provider
-                    updated_data[token_field] = token_value
+                    token_value = user_input.get(token_field)
+                    if not token_value:
+                        errors[token_field] = "required"
+                    else:
+                        # Prepare the updated configuration
+                        updated_data = dict(self.config_entry.data)
+                        updated_data["ai_provider"] = provider
+                        updated_data[token_field] = token_value
 
+                if not errors:
                     # Update model configuration
                     selected_model = user_input.get("model")
                     custom_model = user_input.get("custom_model")
@@ -443,8 +542,8 @@ class AiAgentHaOptionsFlowHandler(config_entries.OptionsFlow):
                         # Use selected model if it's not the "Custom..." option
                         updated_data["models"][provider] = selected_model
                     else:
-                        # For local, alter, and zai providers, allow empty model name
-                        if provider in ("local", "alter", "zai"):
+                        # For local, alter, zai, and bedrock providers, allow empty model name
+                        if provider in ("local", "alter", "zai", "bedrock"):
                             updated_data["models"][provider] = ""
                         else:
                             # Ensure we keep the current model or use default for other providers
@@ -453,21 +552,58 @@ class AiAgentHaOptionsFlowHandler(config_entries.OptionsFlow):
                                     provider
                                 ]
 
-                    _LOGGER.debug(
-                        f"Options flow - Final model config for {provider}: {updated_data['models'].get(provider)}"
-                    )
+                    if not errors:
+                        _LOGGER.debug(
+                            f"Options flow - Final model config for {provider}: {updated_data['models'].get(provider)}"
+                        )
 
-                    # Update the config entry
-                    self.hass.config_entries.async_update_entry(
-                        self.config_entry, data=updated_data
-                    )
+                        # Update the config entry
+                        self.hass.config_entries.async_update_entry(
+                            self.config_entry, data=updated_data
+                        )
 
-                    return self.async_create_entry(title="", data={})
+                        return self.async_create_entry(title="", data={})
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception in options flow")
                 errors["base"] = "unknown"
 
         # Build schema for the selected provider in options
+        if provider == "bedrock":
+            current_access_key = self.config_entry.data.get(CONF_BEDROCK_ACCESS_KEY, "")
+            current_secret_key = self.config_entry.data.get(CONF_BEDROCK_SECRET_KEY, "")
+            current_region = self.config_entry.data.get(CONF_BEDROCK_REGION, "us-east-1")
+            # Only show current values if provider hasn't changed
+            display_access_key = current_access_key if provider == current_provider else ""
+            display_secret_key = current_secret_key if provider == current_provider else ""
+            model_options = AVAILABLE_MODELS.get("bedrock", [DEFAULT_MODELS["bedrock"]])
+            schema_dict = {
+                vol.Required(CONF_BEDROCK_ACCESS_KEY, default=display_access_key): TextSelector(
+                    TextSelectorConfig(type="password")
+                ),
+                vol.Required(CONF_BEDROCK_SECRET_KEY, default=display_secret_key): TextSelector(
+                    TextSelectorConfig(type="password")
+                ),
+                vol.Optional(CONF_BEDROCK_REGION, default=current_region): TextSelector(
+                    TextSelectorConfig(type="text")
+                ),
+                vol.Optional("model", default=current_model): SelectSelector(
+                    SelectSelectorConfig(options=model_options)
+                ),
+                vol.Optional("custom_model"): TextSelector(
+                    TextSelectorConfig(type="text")
+                ),
+            }
+
+            return self.async_show_form(
+                step_id="configure_options",
+                data_schema=vol.Schema(schema_dict),
+                errors=errors,
+                description_placeholders={
+                    "token_label": "AWS Credentials",
+                    "provider": PROVIDERS[provider],
+                },
+            )
+
         if provider == "zai":
             current_endpoint = self.config_entry.data.get("zai_endpoint", "general")
             model_options = AVAILABLE_MODELS.get("zai", ["glm-4.7"])
