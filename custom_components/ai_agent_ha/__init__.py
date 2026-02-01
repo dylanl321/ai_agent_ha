@@ -387,7 +387,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         _LOGGER.debug("AI Agent HA panel registered successfully")
     except Exception as e:
-        _LOGGER.warning("Panel registration error: %s", str(e))
+        error_msg = str(e)
+        # If it's just a warning about overwriting, that's okay - panel already exists
+        if "overwriting" in error_msg.lower() or "already exists" in error_msg.lower():
+            _LOGGER.debug("Panel already registered (overwrite warning): %s", error_msg)
+        else:
+            _LOGGER.warning("Panel registration error: %s", error_msg)
 
     return True
 
@@ -420,9 +425,20 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def _panel_exists(hass: HomeAssistant, panel_name: str) -> bool:
     """Check if a panel already exists."""
     try:
-        return hasattr(hass.data, "frontend_panels") and panel_name in hass.data.get(
-            "frontend_panels", {}
-        )
+        # Check in hass.data.frontend_panels (newer HA versions)
+        if hasattr(hass.data, "frontend_panels"):
+            panels = hass.data.get("frontend_panels", {})
+            if panel_name in panels:
+                return True
+        
+        # Also check if panel is registered via frontend component
+        if hasattr(hass.components, "frontend"):
+            frontend = hass.components.frontend
+            if hasattr(frontend, "panels"):
+                if panel_name in frontend.panels:
+                    return True
+        
+        return False
     except Exception as e:
         _LOGGER.debug("Error checking panel existence: %s", str(e))
         return False

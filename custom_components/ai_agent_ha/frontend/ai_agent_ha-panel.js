@@ -14,6 +14,7 @@ const PROVIDERS = {
   anthropic: "Anthropic",
   alter: "Alter",
   zai: "z.ai",
+  bedrock: "AWS Bedrock",
   local: "Local Model",
 };
 
@@ -1397,6 +1398,7 @@ class AiAgentHaPanel extends LitElement {
       "ai agent ha (anthropic (claude))": "anthropic",
       "ai agent ha (alter)": "alter",
       "ai agent ha (z.ai)": "zai",
+      "ai agent ha (aws bedrock)": "bedrock",
       "ai agent ha (local model)": "local",
     };
 
