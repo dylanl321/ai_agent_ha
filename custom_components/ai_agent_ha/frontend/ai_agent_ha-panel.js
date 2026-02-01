@@ -273,19 +273,24 @@ class AiAgentHaPanel extends LitElement {
       :host {
         background: var(--primary-background-color);
         -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
         display: flex;
         flex-direction: column;
         height: 100vh;
+        font-family: var(--mdc-typography-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif);
+        letter-spacing: 0.01em;
       }
       .header {
         background: var(--app-header-background-color);
         color: var(--app-header-text-color);
-        padding: 16px 24px;
+        padding: 18px 24px;
         display: flex;
         align-items: center;
         gap: 12px;
-        font-size: 20px;
-        font-weight: 500;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        line-height: 1.3;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         position: relative;
         z-index: 100;
@@ -293,18 +298,18 @@ class AiAgentHaPanel extends LitElement {
       .clear-button {
         margin-left: auto;
         border: none;
-        border-radius: 16px;
+        border-radius: 20px;
         background: var(--error-color);
         color: #fff;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
         align-items: center;
         gap: 6px;
         padding: 8px 16px;
-        font-weight: 500;
+        font-weight: 600;
         font-size: 13px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        box-shadow: 0 2px 4px rgba(244, 67, 54, 0.2);
         min-width: unset;
         width: auto;
         height: 36px;
@@ -315,13 +320,17 @@ class AiAgentHaPanel extends LitElement {
       }
       .clear-button:hover {
         background: var(--error-color);
-        opacity: 0.92;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 6px rgba(0,0,0,0.13);
+        opacity: 0.95;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
       }
       .clear-button:active {
         transform: translateY(0);
-        box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        box-shadow: 0 2px 4px rgba(244, 67, 54, 0.2);
+      }
+      .clear-button:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.3), 0 2px 4px rgba(244, 67, 54, 0.2);
       }
       .clear-button ha-icon {
         --mdc-icon-size: 16px;
@@ -351,21 +360,40 @@ class AiAgentHaPanel extends LitElement {
       .messages {
         overflow-y: auto;
         border: 1px solid var(--divider-color);
-        border-radius: 12px;
+        border-radius: 16px;
         margin-bottom: 24px;
-        padding: 0;
+        padding: 16px;
         background: var(--primary-background-color);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
         flex-grow: 1;
         width: 100%;
+        scroll-behavior: smooth;
+      }
+      .messages::-webkit-scrollbar {
+        width: 8px;
+      }
+      .messages::-webkit-scrollbar-track {
+        background: var(--secondary-background-color);
+        border-radius: 4px;
+      }
+      .messages::-webkit-scrollbar-thumb {
+        background: var(--divider-color);
+        border-radius: 4px;
+      }
+      .messages::-webkit-scrollbar-thumb:hover {
+        background: var(--secondary-text-color);
       }
       .prompts-section {
         margin-bottom: 12px;
-        padding: 12px 16px;
+        padding: 14px 18px;
         background: var(--secondary-background-color);
         border-radius: 16px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
         border: 1px solid var(--divider-color);
+        transition: all 0.2s ease;
+      }
+      .prompts-section:hover {
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
       }
       .prompts-header {
         display: flex;
@@ -405,26 +433,33 @@ class AiAgentHaPanel extends LitElement {
         background: var(--primary-background-color);
         border: 1px solid var(--divider-color);
         border-radius: 20px;
-        padding: 6px 12px;
+        padding: 8px 14px;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         font-size: 12px;
-        line-height: 1.3;
+        line-height: 1.4;
         color: var(--primary-text-color);
         white-space: nowrap;
         max-width: 200px;
         overflow: hidden;
         text-overflow: ellipsis;
+        font-weight: 500;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
       }
       .prompt-bubble:hover {
         border-color: var(--primary-color);
         background: var(--primary-color);
         color: var(--text-primary-color);
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(var(--primary-color-rgb, 3, 169, 244), 0.2);
       }
       .prompt-bubble:active {
         transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(var(--primary-color-rgb, 3, 169, 244), 0.15);
+      }
+      .prompt-bubble:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 3, 169, 244), 0.2), 0 2px 4px rgba(var(--primary-color-rgb, 3, 169, 244), 0.15);
       }
       .history-bubble {
         background: var(--primary-background-color);
@@ -462,25 +497,41 @@ class AiAgentHaPanel extends LitElement {
         color: var(--text-primary-color);
       }
       .message {
-        margin-bottom: 16px;
-        padding: 12px 16px;
-        border-radius: 12px;
+        margin-bottom: 20px;
+        padding: 16px 20px;
+        border-radius: 16px;
         max-width: 80%;
-        line-height: 1.5;
-        animation: fadeIn 0.3s ease-out;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        line-height: 1.65;
+        letter-spacing: 0.01em;
+        font-size: 15px;
+        animation: fadeIn 0.4s ease-out;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         word-wrap: break-word;
+        position: relative;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      .message:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
       }
       .user-message {
         background: var(--primary-color);
         color: var(--text-primary-color);
         margin-left: auto;
         border-bottom-right-radius: 4px;
+        box-shadow: 0 2px 8px rgba(var(--primary-color-rgb, 3, 169, 244), 0.2);
+      }
+      .user-message:hover {
+        box-shadow: 0 4px 12px rgba(var(--primary-color-rgb, 3, 169, 244), 0.3);
       }
       .assistant-message {
         background: var(--secondary-background-color);
         margin-right: auto;
         border-bottom-left-radius: 4px;
+        border: 1px solid var(--divider-color);
+      }
+      .assistant-message:hover {
+        border-color: var(--primary-color);
       }
       .message-content {
         word-wrap: break-word;
@@ -488,24 +539,36 @@ class AiAgentHaPanel extends LitElement {
       .message-content h1,
       .message-content h2,
       .message-content h3 {
-        margin: 12px 0 8px 0;
-        font-weight: 600;
+        margin: 16px 0 10px 0;
+        font-weight: 700;
         line-height: 1.3;
+        letter-spacing: -0.02em;
       }
       .message-content h1 {
-        font-size: 1.5em;
+        font-size: 1.75em;
         border-bottom: 2px solid var(--divider-color);
-        padding-bottom: 8px;
+        padding-bottom: 10px;
+        margin-top: 20px;
       }
       .message-content h2 {
-        font-size: 1.3em;
+        font-size: 1.5em;
+        margin-top: 18px;
       }
       .message-content h3 {
-        font-size: 1.1em;
+        font-size: 1.25em;
+        margin-top: 16px;
       }
       .message-content p {
-        margin: 8px 0;
-        line-height: 1.6;
+        margin: 10px 0;
+        line-height: 1.7;
+        letter-spacing: 0.01em;
+        font-size: 15px;
+      }
+      .message-content p:first-child {
+        margin-top: 0;
+      }
+      .message-content p:last-child {
+        margin-bottom: 0;
       }
       .message-content ul,
       .message-content ol {
@@ -547,56 +610,248 @@ class AiAgentHaPanel extends LitElement {
       .message-content em {
         font-style: italic;
       }
+      .message-content h4,
+      .message-content h5,
+      .message-content h6 {
+        margin: 10px 0 6px 0;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      .message-content h4 {
+        font-size: 1.05em;
+      }
+      .message-content h5 {
+        font-size: 1em;
+      }
+      .message-content h6 {
+        font-size: 0.95em;
+        color: var(--secondary-text-color);
+      }
+      .message-content blockquote {
+        border-left: 4px solid var(--primary-color);
+        margin: 12px 0;
+        padding: 8px 16px;
+        background: var(--secondary-background-color);
+        border-radius: 4px;
+        font-style: italic;
+        color: var(--secondary-text-color);
+      }
+      .message-content blockquote p {
+        margin: 4px 0;
+      }
+      .message-content blockquote p:first-child {
+        margin-top: 0;
+      }
+      .message-content blockquote p:last-child {
+        margin-bottom: 0;
+      }
+      .message-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0;
+        font-size: 0.95em;
+        overflow-x: auto;
+        display: block;
+      }
+      .message-content table thead {
+        background: var(--secondary-background-color);
+      }
+      .message-content table th,
+      .message-content table td {
+        padding: 8px 12px;
+        border: 1px solid var(--divider-color);
+        text-align: left;
+      }
+      .message-content table th {
+        background: var(--secondary-background-color);
+        font-weight: 600;
+        color: var(--primary-text-color);
+      }
+      .message-content table tr:nth-child(even) {
+        background: var(--secondary-background-color);
+      }
+      .message-content table tr:hover {
+        background: var(--primary-background-color);
+      }
+      .message-content hr {
+        border: none;
+        border-top: 2px solid var(--divider-color);
+        margin: 16px 0;
+        height: 0;
+      }
+      .message-content ul {
+        list-style-type: disc;
+      }
+      .message-content ul ul {
+        list-style-type: circle;
+        margin-top: 4px;
+      }
+      .message-content ul ul ul {
+        list-style-type: square;
+      }
+      .message-content ol {
+        list-style-type: decimal;
+      }
+      .message-content ol ol {
+        list-style-type: lower-alpha;
+        margin-top: 4px;
+      }
+      .message-content ol ol ol {
+        list-style-type: lower-roman;
+      }
+      .message-content code {
+        background: var(--code-background-color, rgba(0, 0, 0, 0.08));
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: 'Courier New', 'Consolas', 'Monaco', 'Lucida Console', monospace;
+        font-size: 0.9em;
+        border: 1px solid var(--divider-color);
+      }
+      .message-content pre {
+        background: var(--code-background-color, rgba(0, 0, 0, 0.08));
+        padding: 16px;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 12px 0;
+        border: 1px solid var(--divider-color);
+        position: relative;
+      }
+      .message-content pre code {
+        background: none;
+        padding: 0;
+        border: none;
+        font-size: 0.9em;
+        line-height: 1.5;
+        display: block;
+        white-space: pre;
+        font-family: 'Courier New', 'Consolas', 'Monaco', 'Lucida Console', 'Menlo', monospace;
+      }
+      .code-block-wrapper {
+        position: relative;
+        margin: 12px 0;
+      }
+      .code-block-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        background: var(--secondary-background-color);
+        border: 1px solid var(--divider-color);
+        border-bottom: none;
+        border-radius: 8px 8px 0 0;
+        font-size: 12px;
+        color: var(--secondary-text-color);
+      }
+      .code-block-language {
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .code-block-copy {
+        background: transparent;
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+        padding: 4px 8px;
+        cursor: pointer;
+        font-size: 11px;
+        color: var(--primary-text-color);
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .code-block-copy:hover {
+        background: var(--primary-color);
+        color: var(--text-primary-color);
+        border-color: var(--primary-color);
+      }
+      .code-block-copy:active {
+        transform: scale(0.95);
+      }
+      .code-block-copy ha-icon {
+        --mdc-icon-size: 14px;
+      }
+      .code-block-wrapper pre {
+        margin: 0;
+        border-radius: 0 0 8px 8px;
+      }
+      .message-content a {
+        color: var(--primary-color, #03a9f4);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+        transition: border-color 0.2s ease;
+      }
+      .message-content a:hover {
+        text-decoration: none;
+        border-bottom-color: var(--primary-color, #03a9f4);
+      }
+      .message-content a:visited {
+        color: var(--primary-color, #03a9f4);
+        opacity: 0.8;
+      }
       .input-container {
         position: relative;
         width: 100%;
         background: var(--card-background-color);
-        border: 1px solid var(--divider-color);
-        border-radius: 12px;
+        border: 2px solid var(--divider-color);
+        border-radius: 16px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         margin-bottom: 24px;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        transition: all 0.3s ease;
       }
       .input-container:focus-within {
         border-color: var(--primary-color);
-        box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.1);
+        box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 3, 169, 244), 0.15), 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
       }
       .input-main {
         display: flex;
         align-items: flex-end;
-        padding: 12px;
+        padding: 16px;
         gap: 12px;
       }
       .input-wrapper {
         flex-grow: 1;
         position: relative;
         border: 1px solid var(--divider-color);
+        border-radius: 12px;
+        background: var(--primary-background-color);
+        transition: border-color 0.2s ease;
+      }
+      .input-wrapper:focus-within {
+        border-color: var(--primary-color);
       }
       textarea {
         width: 100%;
-        min-height: 24px;
+        min-height: 28px;
         max-height: 200px;
-        padding: 12px 16px 12px 16px;
+        padding: 14px 18px;
         border: none;
         outline: none;
         resize: none;
-        font-size: 16px;
-        line-height: 1.5;
+        font-size: 15px;
+        line-height: 1.6;
         background: transparent;
         color: var(--primary-text-color);
         font-family: inherit;
+        transition: all 0.2s ease;
       }
       textarea::placeholder {
         color: var(--secondary-text-color);
+        opacity: 0.7;
+        font-style: italic;
+      }
+      textarea:focus::placeholder {
+        opacity: 0.5;
       }
       .input-footer {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 8px 16px 12px 16px;
+        padding: 12px 16px;
         border-top: 1px solid var(--divider-color);
         background: var(--card-background-color);
-        border-radius: 0 0 12px 12px;
+        border-radius: 0 0 16px 16px;
       }
       .provider-selector {
         position: relative;
@@ -608,32 +863,33 @@ class AiAgentHaPanel extends LitElement {
         display: flex;
         align-items: center;
         gap: 6px;
-        padding: 6px 12px;
+        padding: 8px 14px;
         background: var(--secondary-background-color);
         border: 1px solid var(--divider-color);
-        border-radius: 8px;
+        border-radius: 10px;
         cursor: pointer;
         font-size: 14px;
         font-weight: 500;
         color: var(--primary-text-color);
         transition: all 0.2s ease;
-        min-width: 150px;
+        min-width: 160px;
         -webkit-appearance: none;
         -moz-appearance: none;
         appearance: none;
         background-image: url('data:image/svg+xml;charset=US-ASCII,<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5H7z" fill="currentColor"/></svg>');
         background-repeat: no-repeat;
-        background-position: right 8px center;
-        padding-right: 30px;
+        background-position: right 10px center;
+        padding-right: 32px;
       }
       .provider-button:hover {
         background-color: var(--primary-background-color);
         border-color: var(--primary-color);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
       }
       .provider-button:focus {
         outline: none;
         border-color: var(--primary-color);
-        box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.2);
+        box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 3, 169, 244), 0.15);
       }
       .provider-label {
         font-size: 12px;
@@ -648,9 +904,21 @@ class AiAgentHaPanel extends LitElement {
         color: var(--secondary-text-color);
         cursor: pointer;
         user-select: none;
+        padding: 6px 10px;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+      }
+      .thinking-toggle:hover {
+        background: var(--secondary-background-color);
+        color: var(--primary-text-color);
+      }
+      .thinking-toggle:focus-within {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
       }
       .thinking-toggle input {
         margin: 0;
+        cursor: pointer;
       }
       .thinking-panel {
         border: 1px dashed var(--divider-color);
@@ -716,55 +984,92 @@ class AiAgentHaPanel extends LitElement {
         --mdc-typography-button-font-size: 14px;
         --mdc-typography-button-text-transform: none;
         --mdc-typography-button-letter-spacing: 0;
-        --mdc-typography-button-font-weight: 500;
-        --mdc-button-height: 36px;
-        --mdc-button-padding: 0 16px;
-        border-radius: 8px;
+        --mdc-typography-button-font-weight: 600;
+        --mdc-button-height: 44px;
+        --mdc-button-padding: 0 20px;
+        border-radius: 22px;
         transition: all 0.2s ease;
-        min-width: 80px;
+        min-width: 100px;
+        box-shadow: 0 2px 8px rgba(var(--primary-color-rgb, 3, 169, 244), 0.2);
       }
-      .send-button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      .send-button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(var(--primary-color-rgb, 3, 169, 244), 0.3);
       }
-      .send-button:active {
+      .send-button:active:not(:disabled) {
         transform: translateY(0);
+        box-shadow: 0 2px 6px rgba(var(--primary-color-rgb, 3, 169, 244), 0.2);
       }
       .send-button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      .send-button:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 3, 169, 244), 0.2), 0 2px 8px rgba(var(--primary-color-rgb, 3, 169, 244), 0.2);
       }
       .loading {
         display: flex;
         align-items: center;
         gap: 12px;
-        margin-bottom: 16px;
-        padding: 12px 16px;
-        border-radius: 12px;
+        margin-bottom: 20px;
+        padding: 16px 20px;
+        border-radius: 16px;
         background: var(--secondary-background-color);
+        border: 1px solid var(--divider-color);
         margin-right: auto;
         max-width: 80%;
-        animation: fadeIn 0.3s ease-out;
+        animation: fadeIn 0.4s ease-out;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+      .loading-text {
+        font-size: 14px;
+        color: var(--secondary-text-color);
+        font-style: italic;
       }
       .loading-dots {
         display: flex;
-        gap: 4px;
+        gap: 6px;
+        align-items: center;
       }
       .dot {
-        width: 8px;
-        height: 8px;
+        width: 10px;
+        height: 10px;
         background: var(--primary-color);
         border-radius: 50%;
-        animation: bounce 1.4s infinite ease-in-out;
+        animation: pulse 1.4s infinite ease-in-out;
+        opacity: 0.4;
       }
-      .dot:nth-child(1) { animation-delay: -0.32s; }
-      .dot:nth-child(2) { animation-delay: -0.16s; }
-      @keyframes bounce {
-        0%, 80%, 100% {
-          transform: scale(0);
+      .dot:nth-child(1) { 
+        animation-delay: 0s;
+        opacity: 0.4;
+      }
+      .dot:nth-child(2) { 
+        animation-delay: 0.2s;
+        opacity: 0.6;
+      }
+      .dot:nth-child(3) { 
+        animation-delay: 0.4s;
+        opacity: 0.8;
+      }
+      @keyframes pulse {
+        0%, 100% {
+          transform: scale(0.8);
+          opacity: 0.4;
         }
-        40% {
-          transform: scale(1.0);
+        50% {
+          transform: scale(1.2);
+          opacity: 1;
+        }
+      }
+      @keyframes typing {
+        0%, 60%, 100% {
+          transform: translateY(0);
+        }
+        30% {
+          transform: translateY(-10px);
         }
       }
       @keyframes fadeIn {
@@ -779,46 +1084,185 @@ class AiAgentHaPanel extends LitElement {
       }
       .error {
         color: var(--error-color);
-        padding: 16px;
-        margin: 8px 0;
-        border-radius: 12px;
-        background: var(--error-background-color);
-        border: 1px solid var(--error-color);
-        animation: fadeIn 0.3s ease-out;
+        padding: 16px 20px;
+        margin: 8px 0 20px 0;
+        border-radius: 16px;
+        background: var(--error-background-color, rgba(244, 67, 54, 0.1));
+        border: 2px solid var(--error-color);
+        animation: fadeIn 0.4s ease-out;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        position: relative;
+        box-shadow: 0 2px 8px rgba(244, 67, 54, 0.15);
+      }
+      .error-icon {
+        flex-shrink: 0;
+        margin-top: 2px;
+        --mdc-icon-size: 20px;
+        color: var(--error-color);
+      }
+      .error-content {
+        flex-grow: 1;
+      }
+      .error-dismiss {
+        flex-shrink: 0;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        color: var(--error-color);
+        opacity: 0.7;
+        transition: opacity 0.2s ease, background-color 0.2s ease;
+        --mdc-icon-size: 18px;
+      }
+      .error-dismiss:hover {
+        opacity: 1;
+        background: rgba(244, 67, 54, 0.1);
+      }
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 24px;
+        text-align: center;
+        color: var(--secondary-text-color);
+        min-height: 300px;
+      }
+      .empty-state-icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+        opacity: 0.6;
+        color: var(--primary-color);
+      }
+      .empty-state-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--primary-text-color);
+        margin-bottom: 8px;
+      }
+      .empty-state-description {
+        font-size: 14px;
+        line-height: 1.6;
+        margin-bottom: 24px;
+        max-width: 500px;
+      }
+      .empty-state-examples {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+        max-width: 500px;
+      }
+      .empty-state-example {
+        padding: 12px 16px;
+        background: var(--secondary-background-color);
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: left;
+        font-size: 14px;
+      }
+      .empty-state-example:hover {
+        background: var(--primary-color);
+        color: var(--text-primary-color);
+        border-color: var(--primary-color);
+        transform: translateX(4px);
       }
       .automation-suggestion {
-        background: var(--secondary-background-color);
-        border: 1px solid var(--primary-color);
-        border-radius: 12px;
-        padding: 16px;
-        margin: 8px 0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        background: var(--card-background-color);
+        border: 2px solid var(--primary-color);
+        border-radius: 16px;
+        padding: 20px;
+        margin: 12px 0;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
         position: relative;
         z-index: 10;
       }
       .automation-title {
-        font-weight: 500;
+        font-weight: 600;
         margin-bottom: 8px;
         color: var(--primary-color);
-        font-size: 16px;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .automation-title ha-icon {
+        --mdc-icon-size: 20px;
       }
       .automation-description {
         margin-bottom: 16px;
+        color: var(--primary-text-color);
+        line-height: 1.6;
+        font-size: 14px;
+      }
+      .automation-details-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        background: var(--secondary-background-color);
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 12px;
         color: var(--secondary-text-color);
-        line-height: 1.4;
+        margin-bottom: 12px;
+        transition: all 0.2s ease;
+        user-select: none;
+      }
+      .automation-details-toggle:hover {
+        background: var(--primary-background-color);
+        border-color: var(--primary-color);
+        color: var(--primary-text-color);
+      }
+      .automation-details-toggle ha-icon {
+        --mdc-icon-size: 16px;
+        transition: transform 0.2s ease;
+      }
+      .automation-details-toggle.expanded ha-icon {
+        transform: rotate(180deg);
+      }
+      .automation-details {
+        margin-top: 0;
+        padding: 12px;
+        background: var(--primary-background-color);
+        border-radius: 8px;
+        font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid var(--divider-color);
+        display: none;
+        line-height: 1.5;
+      }
+      .automation-details.expanded {
+        display: block;
       }
       .automation-actions {
         display: flex;
-        gap: 8px;
-        margin-top: 16px;
+        gap: 12px;
+        margin-top: 20px;
         justify-content: flex-end;
       }
       .automation-actions ha-button {
-        --mdc-button-height: 40px;
-        --mdc-button-padding: 0 20px;
+        --mdc-button-height: 44px;
+        --mdc-button-padding: 0 24px;
         --mdc-typography-button-font-size: 14px;
         --mdc-typography-button-font-weight: 600;
-        border-radius: 20px;
+        border-radius: 22px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
+      }
+      .automation-actions ha-button:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transform: translateY(-1px);
       }
       .automation-actions ha-button:first-child {
         --mdc-theme-primary: var(--success-color, #4caf50);
@@ -828,52 +1272,97 @@ class AiAgentHaPanel extends LitElement {
         --mdc-theme-primary: var(--error-color);
         --mdc-theme-on-primary: #fff;
       }
-      .automation-details {
-        margin-top: 8px;
-        padding: 8px;
-        background: var(--primary-background-color);
-        border-radius: 8px;
-        font-family: monospace;
-        font-size: 12px;
-        white-space: pre-wrap;
-        overflow-x: auto;
-        max-height: 200px;
-        overflow-y: auto;
-        border: 1px solid var(--divider-color);
-      }
       .dashboard-suggestion {
-        background: var(--secondary-background-color);
-        border: 1px solid var(--info-color, #2196f3);
-        border-radius: 12px;
-        padding: 16px;
-        margin: 8px 0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        background: var(--card-background-color);
+        border: 2px solid var(--info-color, #2196f3);
+        border-radius: 16px;
+        padding: 20px;
+        margin: 12px 0;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
         position: relative;
         z-index: 10;
       }
       .dashboard-title {
-        font-weight: 500;
+        font-weight: 600;
         margin-bottom: 8px;
         color: var(--info-color, #2196f3);
-        font-size: 16px;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .dashboard-title ha-icon {
+        --mdc-icon-size: 20px;
       }
       .dashboard-description {
         margin-bottom: 16px;
+        color: var(--primary-text-color);
+        line-height: 1.6;
+        font-size: 14px;
+      }
+      .dashboard-details-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        background: var(--secondary-background-color);
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 12px;
         color: var(--secondary-text-color);
-        line-height: 1.4;
+        margin-bottom: 12px;
+        transition: all 0.2s ease;
+        user-select: none;
+      }
+      .dashboard-details-toggle:hover {
+        background: var(--primary-background-color);
+        border-color: var(--info-color, #2196f3);
+        color: var(--primary-text-color);
+      }
+      .dashboard-details-toggle ha-icon {
+        --mdc-icon-size: 16px;
+        transition: transform 0.2s ease;
+      }
+      .dashboard-details-toggle.expanded ha-icon {
+        transform: rotate(180deg);
+      }
+      .dashboard-details {
+        margin-top: 0;
+        padding: 12px;
+        background: var(--primary-background-color);
+        border-radius: 8px;
+        font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid var(--divider-color);
+        display: none;
+        line-height: 1.5;
+      }
+      .dashboard-details.expanded {
+        display: block;
       }
       .dashboard-actions {
         display: flex;
-        gap: 8px;
-        margin-top: 16px;
+        gap: 12px;
+        margin-top: 20px;
         justify-content: flex-end;
       }
       .dashboard-actions ha-button {
-        --mdc-button-height: 40px;
-        --mdc-button-padding: 0 20px;
+        --mdc-button-height: 44px;
+        --mdc-button-padding: 0 24px;
         --mdc-typography-button-font-size: 14px;
         --mdc-typography-button-font-weight: 600;
-        border-radius: 20px;
+        border-radius: 22px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
+      }
+      .dashboard-actions ha-button:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transform: translateY(-1px);
       }
       .dashboard-actions ha-button:first-child {
         --mdc-theme-primary: var(--info-color, #2196f3);
@@ -883,23 +1372,116 @@ class AiAgentHaPanel extends LitElement {
         --mdc-theme-primary: var(--error-color);
         --mdc-theme-on-primary: #fff;
       }
-      .dashboard-details {
-        margin-top: 8px;
-        padding: 8px;
-        background: var(--primary-background-color);
-        border-radius: 8px;
-        font-family: monospace;
-        font-size: 12px;
-        white-space: pre-wrap;
-        overflow-x: auto;
-        max-height: 200px;
-        overflow-y: auto;
-        border: 1px solid var(--divider-color);
-      }
       .no-providers {
         color: var(--error-color);
         font-size: 14px;
         padding: 8px;
+      }
+      @media (max-width: 768px) {
+        .header {
+          padding: 14px 16px;
+          font-size: 18px;
+        }
+        .clear-button {
+          padding: 6px 12px;
+          font-size: 12px;
+          height: 32px;
+        }
+        .clear-button span {
+          display: none;
+        }
+        .content {
+          padding: 16px;
+        }
+        .message {
+          max-width: 90%;
+          padding: 14px 16px;
+          font-size: 14px;
+          margin-bottom: 16px;
+        }
+        .messages {
+          padding: 12px;
+        }
+        .input-container {
+          margin-bottom: 16px;
+        }
+        .input-main {
+          padding: 12px;
+        }
+        .input-footer {
+          padding: 10px 12px;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .provider-selector {
+          width: 100%;
+          order: 2;
+        }
+        .provider-button {
+          width: 100%;
+          min-width: unset;
+        }
+        .send-button {
+          --mdc-button-height: 40px;
+          min-width: 80px;
+          order: 1;
+        }
+        .thinking-toggle {
+          order: 3;
+          width: 100%;
+          justify-content: center;
+        }
+        .empty-state {
+          padding: 32px 16px;
+          min-height: 250px;
+        }
+        .empty-state-icon {
+          font-size: 48px;
+        }
+        .empty-state-title {
+          font-size: 18px;
+        }
+        .empty-state-description {
+          font-size: 13px;
+        }
+        .automation-suggestion,
+        .dashboard-suggestion {
+          padding: 16px;
+          margin: 10px 0;
+        }
+        .automation-actions,
+        .dashboard-actions {
+          flex-direction: column;
+          gap: 8px;
+        }
+        .automation-actions ha-button,
+        .dashboard-actions ha-button {
+          width: 100%;
+        }
+        textarea {
+          font-size: 16px;
+          padding: 12px 14px;
+        }
+      }
+      @media (max-width: 480px) {
+        .message {
+          max-width: 95%;
+          padding: 12px 14px;
+        }
+        .header {
+          font-size: 16px;
+          padding: 12px 14px;
+        }
+        .content {
+          padding: 12px;
+        }
+        .prompts-section {
+          padding: 10px 12px;
+        }
+        .prompt-bubble {
+          font-size: 11px;
+          padding: 5px 10px;
+        }
       }
     `;
   }
@@ -937,7 +1519,27 @@ class AiAgentHaPanel extends LitElement {
     this._showThinking = false;
     this._thinkingExpanded = false;
     this._debugInfo = null;
+    this._expandedAutomations = new Set();
+    this._expandedDashboards = new Set();
     console.debug("AI Agent HA Panel constructor called");
+  }
+
+  _toggleAutomationDetails(index) {
+    if (this._expandedAutomations.has(index)) {
+      this._expandedAutomations.delete(index);
+    } else {
+      this._expandedAutomations.add(index);
+    }
+    this.requestUpdate();
+  }
+
+  _toggleDashboardDetails(index) {
+    if (this._expandedDashboards.has(index)) {
+      this._expandedDashboards.delete(index);
+    } else {
+      this._expandedDashboards.add(index);
+    }
+    this.requestUpdate();
   }
 
   _getRandomPrompts() {
@@ -1046,7 +1648,105 @@ class AiAgentHaPanel extends LitElement {
 
     if (changedProps.has('_messages') || changedProps.has('_isLoading')) {
       this._scrollToBottom();
+      // Add copy buttons to code blocks after messages update
+      this._addCodeBlockCopyButtons();
     }
+  }
+
+  _addCodeBlockCopyButtons() {
+    // Wait for DOM to update after LitElement renders
+    this.updateComplete.then(() => {
+      setTimeout(() => {
+        const codeBlocks = this.shadowRoot.querySelectorAll('.message-content pre code');
+        codeBlocks.forEach((codeElement) => {
+          const pre = codeElement.parentElement;
+          // Skip if already has copy button
+          if (pre.parentElement && pre.parentElement.classList.contains('code-block-wrapper')) {
+            return;
+          }
+          
+          const wrapper = document.createElement('div');
+          wrapper.className = 'code-block-wrapper';
+          
+          const header = document.createElement('div');
+          header.className = 'code-block-header';
+          
+          const language = document.createElement('span');
+          language.className = 'code-block-language';
+          // Try to detect language from class or content
+          const codeText = codeElement.textContent || '';
+          language.textContent = 'Code';
+          
+          const copyButton = document.createElement('button');
+          copyButton.className = 'code-block-copy';
+          copyButton.innerHTML = '<ha-icon icon="mdi:content-copy"></ha-icon><span>Copy</span>';
+          copyButton.onclick = (e) => {
+            e.stopPropagation();
+            this._copyToClipboard(codeText, copyButton);
+          };
+          
+          header.appendChild(language);
+          header.appendChild(copyButton);
+          
+          if (pre.parentNode) {
+            pre.parentNode.insertBefore(wrapper, pre);
+            wrapper.appendChild(header);
+            wrapper.appendChild(pre);
+          }
+        });
+      }, 150);
+    });
+  }
+
+  async _copyToClipboard(text, button) {
+    try {
+      await navigator.clipboard.writeText(text);
+      const originalHTML = button.innerHTML;
+      button.innerHTML = '<ha-icon icon="mdi:check"></ha-icon><span>Copied!</span>';
+      button.style.background = 'var(--success-color, #4caf50)';
+      button.style.color = '#fff';
+      button.style.borderColor = 'var(--success-color, #4caf50)';
+      
+      setTimeout(() => {
+        button.innerHTML = originalHTML;
+        button.style.background = '';
+        button.style.color = '';
+        button.style.borderColor = '';
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      button.innerHTML = '<ha-icon icon="mdi:alert"></ha-icon><span>Failed</span>';
+      setTimeout(() => {
+        button.innerHTML = '<ha-icon icon="mdi:content-copy"></ha-icon><span>Copy</span>';
+      }, 2000);
+    }
+  }
+
+  _renderEmptyState() {
+    const examplePrompts = [
+      "What's the current temperature inside and outside?",
+      "Turn on all the lights in the living room",
+      "Show me today's weather forecast",
+      "Create an automation to turn off lights at 10 PM"
+    ];
+    
+    return html`
+      <div class="empty-state">
+        <ha-icon icon="mdi:robot-happy" class="empty-state-icon"></ha-icon>
+        <div class="empty-state-title">Welcome to AI Agent HA</div>
+        <div class="empty-state-description">
+          I'm your AI assistant for Home Assistant. Ask me anything about your smart home, 
+          and I'll help you control devices, create automations, build dashboards, and more!
+        </div>
+        <div class="empty-state-examples">
+          ${examplePrompts.map(prompt => html`
+            <div class="empty-state-example" @click=${() => this._usePrompt(prompt)}>
+              ${prompt}
+            </div>
+          `)}
+        </div>
+      </div>
+    `;
   }
 
   _renderPromptsSection() {
@@ -1265,7 +1965,8 @@ class AiAgentHaPanel extends LitElement {
       <div class="content">
         <div class="chat-container">
           <div class="messages" id="messages">
-            ${this._messages.map(msg => html`
+            ${this._messages.length === 0 && !this._isLoading ? this._renderEmptyState() : ''}
+            ${this._messages.map((msg, index) => html`
               <div class="message ${msg.type}-message">
                 <div class="message-content">
                   ${msg.type === 'assistant' 
@@ -1275,9 +1976,19 @@ class AiAgentHaPanel extends LitElement {
                 </div>
                 ${msg.automation ? html`
                   <div class="automation-suggestion">
-                    <div class="automation-title">${msg.automation.alias}</div>
-                    <div class="automation-description">${msg.automation.description}</div>
-                    <div class="automation-details">
+                    <div class="automation-title">
+                      <ha-icon icon="mdi:robot"></ha-icon>
+                      ${msg.automation.alias}
+                    </div>
+                    <div class="automation-description">${msg.automation.description || 'No description provided'}</div>
+                    <div 
+                      class="automation-details-toggle ${this._expandedAutomations.has(index) ? 'expanded' : ''}"
+                      @click=${() => this._toggleAutomationDetails(index)}
+                    >
+                      <ha-icon icon="mdi:chevron-down"></ha-icon>
+                      <span>${this._expandedAutomations.has(index) ? 'Hide' : 'Show'} Details</span>
+                    </div>
+                    <div class="automation-details ${this._expandedAutomations.has(index) ? 'expanded' : ''}">
                       ${JSON.stringify(msg.automation, null, 2)}
                     </div>
                     <div class="automation-actions">
@@ -1294,9 +2005,19 @@ class AiAgentHaPanel extends LitElement {
                 ` : ''}
                 ${msg.dashboard ? html`
                   <div class="dashboard-suggestion">
-                    <div class="dashboard-title">${msg.dashboard.title}</div>
+                    <div class="dashboard-title">
+                      <ha-icon icon="mdi:view-dashboard"></ha-icon>
+                      ${msg.dashboard.title || 'New Dashboard'}
+                    </div>
                     <div class="dashboard-description">Dashboard with ${msg.dashboard.views ? msg.dashboard.views.length : 0} view(s)</div>
-                    <div class="dashboard-details">
+                    <div 
+                      class="dashboard-details-toggle ${this._expandedDashboards.has(index) ? 'expanded' : ''}"
+                      @click=${() => this._toggleDashboardDetails(index)}
+                    >
+                      <ha-icon icon="mdi:chevron-down"></ha-icon>
+                      <span>${this._expandedDashboards.has(index) ? 'Hide' : 'Show'} Details</span>
+                    </div>
+                    <div class="dashboard-details ${this._expandedDashboards.has(index) ? 'expanded' : ''}">
                       ${JSON.stringify(msg.dashboard, null, 2)}
                     </div>
                     <div class="dashboard-actions">
@@ -1315,7 +2036,7 @@ class AiAgentHaPanel extends LitElement {
             `)}
             ${this._isLoading ? html`
               <div class="loading">
-                <span>AI Agent is thinking</span>
+                <span class="loading-text">AI Agent is thinking</span>
                 <div class="loading-dots">
                   <div class="dot"></div>
                   <div class="dot"></div>
@@ -1325,9 +2046,15 @@ class AiAgentHaPanel extends LitElement {
             ` : ''}
             ${this._error ? html`
               <div class="error">
-                <div class="message-content">
-                  ${unsafeHTML(parseMarkdown(this._error))}
+                <ha-icon icon="mdi:alert-circle" class="error-icon"></ha-icon>
+                <div class="error-content">
+                  <div class="message-content">
+                    ${unsafeHTML(parseMarkdown(this._error))}
+                  </div>
                 </div>
+                <button class="error-dismiss" @click=${() => this._error = null} title="Dismiss">
+                  <ha-icon icon="mdi:close"></ha-icon>
+                </button>
               </div>
             ` : ''}
             ${this._showThinking ? this._renderThinkingPanel() : ''}
