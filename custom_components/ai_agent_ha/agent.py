@@ -2778,10 +2778,94 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                 "views": dashboard_config.get("views", []),
             }
 
+            # First, try to check if this is a storage-mode dashboard
             try:
-                # Update dashboard file directly
-                import os
+                from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
 
+                lovelace_data = self.hass.data.get(LOVELACE_DOMAIN)
+                if lovelace_data is not None and hasattr(lovelace_data, "dashboards"):
+                    dashboards = lovelace_data.dashboards
+                    
+                    # Handle special case: if dashboard_url is "storage", it might refer to default dashboard
+                    # or we need to find the actual dashboard URL
+                    dashboard_key = None if (dashboard_url is None or dashboard_url == "storage") else dashboard_url
+                    
+                    # If "storage" was passed and default dashboard not found, try to find any storage-mode dashboard
+                    if dashboard_url == "storage" and dashboard_key not in dashboards:
+                        _LOGGER.debug("'storage' passed as dashboard_url, searching for storage-mode dashboards")
+                        # Try to find a storage-mode dashboard
+                        for key, dash in dashboards.items():
+                            try:
+                                config = await dash.async_get_info()
+                                if config and config.get("mode") == "storage":
+                                    dashboard_key = key
+                                    _LOGGER.debug("Found storage-mode dashboard with key: %s", key)
+                                    break
+                            except Exception:
+                                continue
+                    
+                    if dashboard_key in dashboards:
+                        dashboard = dashboards[dashboard_key]
+                        # Check if this is a storage-mode dashboard
+                        config = await dashboard.async_get_info()
+                        if config and config.get("mode") == "storage":
+                            # This is a storage-mode dashboard, update via Lovelace API
+                            _LOGGER.debug("Updating storage-mode dashboard: %s", dashboard_url)
+                            
+                            # Update the dashboard configuration using the Lovelace API
+                            # For storage-mode dashboards, we need to update the config via the dashboard's storage
+                            try:
+                                # Get the current config to preserve any existing data
+                                current_config = await dashboard.async_get_info()
+                                
+                                # Update the config with new data
+                                updated_config = dashboard_data.copy()
+                                
+                                # Try to save the config using the dashboard's async_save_config method
+                                if hasattr(dashboard, "async_save_config"):
+                                    await dashboard.async_save_config(updated_config)
+                                elif hasattr(dashboard, "config_store"):
+                                    # Access the storage directly
+                                    store = dashboard.config_store
+                                    if hasattr(store, "async_save"):
+                                        await store.async_save(updated_config)
+                                    else:
+                                        # Try alternative storage access
+                                        if hasattr(dashboard, "_config_store"):
+                                            store = dashboard._config_store
+                                            await store.async_save(updated_config)
+                                        else:
+                                            raise AttributeError("No storage method found")
+                                else:
+                                    # Try using the lovelace.save_config service
+                                    await self.hass.services.async_call(
+                                        "lovelace",
+                                        "save_config",
+                                        {
+                                            "url_path": dashboard_url,
+                                            "config": updated_config
+                                        }
+                                    )
+                                
+                                _LOGGER.info(
+                                    "Successfully updated storage-mode dashboard: %s", dashboard_url
+                                )
+                                return {
+                                    "success": True,
+                                    "message": f"Dashboard '{dashboard_url}' updated successfully!",
+                                }
+                            except Exception as e:
+                                _LOGGER.warning(
+                                    "Failed to update storage-mode dashboard via API: %s", str(e)
+                                )
+                                # Fall through to try YAML file method
+            except Exception as e:
+                _LOGGER.debug("Could not check for storage-mode dashboard: %s", str(e))
+                # Fall through to try YAML file method
+
+            # Try updating the YAML file (for YAML-mode dashboards)
+            try:
+                import os
                 import yaml
 
                 # Try updating the YAML file
@@ -2824,7 +2908,21 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                         "message": f"Dashboard '{dashboard_url}' updated successfully!",
                     }
                 else:
-                    return {"error": f"Dashboard file for '{dashboard_url}' not found"}
+                    # Provide more helpful error message
+                    available_dashboards = []
+                    try:
+                        from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+                        lovelace_data = self.hass.data.get(LOVELACE_DOMAIN)
+                        if lovelace_data and hasattr(lovelace_data, "dashboards"):
+                            for key in lovelace_data.dashboards.keys():
+                                available_dashboards.append(str(key) if key is not None else "default")
+                    except Exception:
+                        pass
+                    
+                    error_msg = f"Dashboard '{dashboard_url}' not found"
+                    if available_dashboards:
+                        error_msg += f". Available dashboards: {', '.join(available_dashboards)}"
+                    return {"error": error_msg}
 
             except Exception as e:
                 _LOGGER.error("Failed to update dashboard file: %s", str(e))
