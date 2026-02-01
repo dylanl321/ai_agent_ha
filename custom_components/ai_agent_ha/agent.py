@@ -3166,14 +3166,21 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                             "Cleaned response last 100 chars: %s", response_clean[-100:]
                         )
 
+                        # Check if response is empty
+                        if not response_clean or not response_clean.strip():
+                            _LOGGER.warning("Empty response from AI provider")
+                            raise Exception("Empty response from AI provider")
+                        
                         # Simple strategy: try to parse the cleaned response directly
                         response_data = None
                         try:
                             _LOGGER.debug("Attempting basic JSON parse...")
+                            _LOGGER.debug("Response length: %d, First 200 chars: %s", len(response_clean), response_clean[:200])
                             response_data = json.loads(response_clean)
                             _LOGGER.debug("Basic JSON parse succeeded!")
                         except json.JSONDecodeError as e:
                             _LOGGER.warning("Basic JSON parse failed: %s", str(e))
+                            _LOGGER.debug("Response content (first 500 chars): %s", response_clean[:500])
                             _LOGGER.debug("JSON error position: %d", e.pos)
                             if e.pos < len(response_clean):
                                 _LOGGER.debug(
@@ -3216,14 +3223,22 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                                     raise e  # Re-raise the original error
                             else:
                                 _LOGGER.warning(
-                                    "Could not find JSON boundaries in response"
+                                    "Could not find JSON boundaries in response. Treating as plain text response."
                                 )
-                                raise e  # Re-raise the original error
+                                # If no JSON found, wrap the response as plain text
+                                response_data = {
+                                    "request_type": "final_response",
+                                    "response": response_clean
+                                }
+                                _LOGGER.debug("Wrapped non-JSON response as final_response")
 
                         if response_data is None:
-                            raise json.JSONDecodeError(
-                                "All parsing strategies failed", response_clean, 0
-                            )
+                            # Last resort: wrap the entire response as plain text
+                            _LOGGER.warning("All JSON parsing strategies failed, wrapping as plain text")
+                            response_data = {
+                                "request_type": "final_response",
+                                "response": response_clean
+                            }
 
                         _LOGGER.debug("Successfully parsed JSON response")
                         _LOGGER.debug(
