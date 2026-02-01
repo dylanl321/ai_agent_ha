@@ -4,152 +4,51 @@ import {
   css,
 } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 import { unsafeHTML } from "https://unpkg.com/lit-html@1.4.1/directives/unsafe-html.js?module";
+import { marked } from "https://cdn.jsdelivr.net/npm/marked@11.1.1/lib/marked.esm.js";
+import DOMPurify from "https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.es.mjs";
 
 console.log("AI Agent HA Panel loading..."); // Debug log
 
-// Enhanced markdown parser with better list and formatting support
+// Configure marked options
+marked.setOptions({
+  breaks: true, // Convert \n to <br>
+  gfm: true, // GitHub Flavored Markdown
+  headerIds: false, // Disable header IDs for security
+  mangle: false, // Don't mangle email addresses
+});
+
+// Parse markdown with sanitization
 function parseMarkdown(text) {
   if (!text) return '';
   
-  // Escape HTML first to prevent XSS
-  const escapeHtml = (str) => {
-    const map = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#039;'
-    };
-    return str.replace(/[&<>"']/g, m => map[m]);
-  };
-  
-  // Process inline markdown first (bold, italic, code, links)
-  function processInlineMarkdown(text) {
-    if (!text) return '';
-    let html = text;
+  try {
+    // Parse markdown to HTML
+    const html = marked.parse(text);
     
-    // Escape HTML
-    html = escapeHtml(html);
+    // Sanitize HTML to prevent XSS attacks
+    const cleanHtml = DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: [
+        'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li',
+        'a', 'blockquote',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'hr'
+      ],
+      ALLOWED_ATTR: ['href', 'target', 'rel'],
+      ALLOW_DATA_ATTR: false,
+    });
     
-    // Code blocks (before other processing)
-    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-    html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-    
-    // Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    
-    // Bold (double asterisk or double underscore) - process first
-    html = html.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/__([^_]+?)__/g, '<strong>$1</strong>');
-    
-    // Italic (single asterisk or single underscore) - only if not already bold
-    // Use a pattern that avoids lookbehind
-    html = html.replace(/(^|[^*])\*([^*\n]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
-    html = html.replace(/(^|[^_])_([^_\n]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
-    
-    return html;
+    return cleanHtml;
+  } catch (error) {
+    console.error('Error parsing markdown:', error);
+    // Fallback: escape HTML and return as plain text
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
   }
-  
-  // Split into lines for processing
-  const lines = text.split('\n');
-  const processedLines = [];
-  let inList = false;
-  let listType = null;
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    
-    // Headers
-    if (trimmed.startsWith('### ')) {
-      if (inList) {
-        processedLines.push(`</${listType}>`);
-        inList = false;
-        listType = null;
-      }
-      processedLines.push(`<h3>${processInlineMarkdown(trimmed.substring(4))}</h3>`);
-      continue;
-    }
-    if (trimmed.startsWith('## ')) {
-      if (inList) {
-        processedLines.push(`</${listType}>`);
-        inList = false;
-        listType = null;
-      }
-      processedLines.push(`<h2>${processInlineMarkdown(trimmed.substring(3))}</h2>`);
-      continue;
-    }
-    if (trimmed.startsWith('# ')) {
-      if (inList) {
-        processedLines.push(`</${listType}>`);
-        inList = false;
-        listType = null;
-      }
-      processedLines.push(`<h1>${processInlineMarkdown(trimmed.substring(2))}</h1>`);
-      continue;
-    }
-    
-    // Unordered lists (starts with - or *)
-    const ulMatch = trimmed.match(/^[\*\-] (.+)$/);
-    if (ulMatch) {
-      if (!inList || listType !== 'ul') {
-        if (inList) processedLines.push(`</${listType}>`);
-        processedLines.push('<ul>');
-        inList = true;
-        listType = 'ul';
-      }
-      processedLines.push(`<li>${processInlineMarkdown(ulMatch[1])}</li>`);
-      continue;
-    }
-    
-    // Ordered lists
-    const olMatch = trimmed.match(/^\d+\. (.+)$/);
-    if (olMatch) {
-      if (!inList || listType !== 'ol') {
-        if (inList) processedLines.push(`</${listType}>`);
-        processedLines.push('<ol>');
-        inList = true;
-        listType = 'ol';
-      }
-      processedLines.push(`<li>${processInlineMarkdown(olMatch[1])}</li>`);
-      continue;
-    }
-    
-    // End list if we hit a blank line
-    if (inList && trimmed === '') {
-      processedLines.push(`</${listType}>`);
-      inList = false;
-      listType = null;
-      processedLines.push('');
-      continue;
-    }
-    
-    // End list if we hit a non-list line
-    if (inList && !ulMatch && !olMatch) {
-      processedLines.push(`</${listType}>`);
-      inList = false;
-      listType = null;
-    }
-    
-    // Regular line - process inline markdown
-    if (trimmed) {
-      processedLines.push(`<p>${processInlineMarkdown(trimmed)}</p>`);
-    } else {
-      processedLines.push('');
-    }
-  }
-  
-  // Close any open list
-  if (inList) {
-    processedLines.push(`</${listType}>`);
-  }
-  
-  let html = processedLines.join('\n');
-  
-  // Clean up multiple consecutive empty paragraphs
-  html = html.replace(/(<p><\/p>\n?)+/g, '<p></p>');
-  
-  return html;
 }
 
 const PROVIDERS = {
