@@ -88,6 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "anthropic",
             "alter",
             "zai",
+            "bedrock",
             "local",
         ]:
             _LOGGER.error("Unknown AI provider: %s", provider)
@@ -103,7 +104,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             {
                 k: v
                 for k, v in config_data.items()
-                if k
+                if                 k
                 not in [
                     "llama_token",
                     "openai_token",
@@ -111,6 +112,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "openrouter_token",
                     "anthropic_token",
                     "zai_token",
+                    "bedrock_access_key",
+                    "bedrock_secret_key",
                 ]
             },
         )
