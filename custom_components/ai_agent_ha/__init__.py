@@ -333,6 +333,65 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error(f"Error updating dashboard: {e}")
             return {"error": str(e)}
 
+    async def async_handle_save_chat_messages(call):
+        """Handle the save_chat_messages service call."""
+        try:
+            # Check if agents are available
+            if DOMAIN not in hass.data or not hass.data[DOMAIN].get("agents"):
+                _LOGGER.error(
+                    "No AI agents available. Please configure the integration first."
+                )
+                return {"error": "No AI agents configured"}
+
+            provider = call.data.get("provider")
+            if provider not in hass.data[DOMAIN]["agents"]:
+                # Get the first available provider
+                available_providers = list(hass.data[DOMAIN]["agents"].keys())
+                if not available_providers:
+                    _LOGGER.error("No AI agents available")
+                    return {"error": "No AI agents configured"}
+                provider = available_providers[0]
+                _LOGGER.debug(f"Using fallback provider: {provider}")
+
+            agent = hass.data[DOMAIN]["agents"][provider]
+            user_id = call.context.user_id if call.context.user_id else "default"
+            messages = call.data.get("messages", [])
+            
+            result = await agent.save_chat_messages(user_id, messages, provider)
+            return result
+        except Exception as e:
+            _LOGGER.error(f"Error saving chat messages: {e}")
+            return {"error": str(e)}
+
+    async def async_handle_load_chat_messages(call):
+        """Handle the load_chat_messages service call."""
+        try:
+            # Check if agents are available
+            if DOMAIN not in hass.data or not hass.data[DOMAIN].get("agents"):
+                _LOGGER.error(
+                    "No AI agents available. Please configure the integration first."
+                )
+                return {"error": "No AI agents configured"}
+
+            provider = call.data.get("provider")
+            if provider not in hass.data[DOMAIN]["agents"]:
+                # Get the first available provider
+                available_providers = list(hass.data[DOMAIN]["agents"].keys())
+                if not available_providers:
+                    _LOGGER.error("No AI agents available")
+                    return {"error": "No AI agents configured"}
+                provider = available_providers[0]
+                _LOGGER.debug(f"Using fallback provider: {provider}")
+
+            agent = hass.data[DOMAIN]["agents"][provider]
+            user_id = call.context.user_id if call.context.user_id else "default"
+            
+            result = await agent.load_chat_messages(user_id, provider)
+            return result
+        except Exception as e:
+            _LOGGER.error(f"Error loading chat messages: {e}")
+            return {"error": str(e)}
+
     # Register services
     hass.services.async_register(DOMAIN, "query", async_handle_query)
     hass.services.async_register(
@@ -349,6 +408,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.services.async_register(
         DOMAIN, "update_dashboard", async_handle_update_dashboard
+    )
+    hass.services.async_register(
+        DOMAIN, "save_chat_messages", async_handle_save_chat_messages
+    )
+    hass.services.async_register(
+        DOMAIN, "load_chat_messages", async_handle_load_chat_messages
     )
 
     # Register static path for frontend
@@ -415,6 +480,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, "load_prompt_history")
     hass.services.async_remove(DOMAIN, "create_dashboard")
     hass.services.async_remove(DOMAIN, "update_dashboard")
+    hass.services.async_remove(DOMAIN, "save_chat_messages")
+    hass.services.async_remove(DOMAIN, "load_chat_messages")
     # Remove data
     if DOMAIN in hass.data:
         hass.data.pop(DOMAIN)

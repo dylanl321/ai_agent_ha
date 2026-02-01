@@ -1596,6 +1596,8 @@ class AiAgentHaPanel extends LitElement {
       console.debug("Event subscription set up in connectedCallback()");
       // Load prompt history from Home Assistant storage
       await this._loadPromptHistory();
+      // Load chat messages from Home Assistant storage
+      await this._loadChatMessages();
     }
 
     // Close dropdown when clicking outside
@@ -1672,9 +1674,15 @@ class AiAgentHaPanel extends LitElement {
       await this._loadPromptHistory();
     }
 
-    // Load prompt history when provider changes
+    // Load prompt history and chat messages when provider changes
     if (changedProps.has('_selectedProvider') && this._selectedProvider && this.hass) {
       await this._loadPromptHistory();
+      await this._loadChatMessages();
+    }
+
+    if (changedProps.has('_messages')) {
+      // Save chat messages when they change
+      this._saveChatMessages();
     }
 
     if (changedProps.has('_messages') || changedProps.has('_isLoading')) {
@@ -1969,6 +1977,96 @@ class AiAgentHaPanel extends LitElement {
       console.debug('Saved prompt history to localStorage');
     } catch (e) {
       console.error('Error saving to localStorage:', e);
+    }
+  }
+
+  async _loadChatMessages() {
+    if (!this.hass || !this._selectedProvider) {
+      console.debug('Hass or provider not available, skipping chat messages load');
+      this._loadChatMessagesFromLocalStorage();
+      return;
+    }
+
+    console.debug('Loading chat messages for provider:', this._selectedProvider);
+    try {
+      const result = await this.hass.callService('ai_agent_ha', 'load_chat_messages', {
+        provider: this._selectedProvider
+      });
+      console.debug('Load chat messages result:', result);
+
+      if (result && result.messages && Array.isArray(result.messages)) {
+        this._messages = result.messages;
+        console.debug('Loaded chat messages:', this._messages.length);
+        this.requestUpdate();
+      } else {
+        console.debug('No chat messages returned from service, checking localStorage');
+        this._loadChatMessagesFromLocalStorage();
+      }
+    } catch (error) {
+      console.error('Error loading chat messages from service:', error);
+      // Fallback to localStorage if service fails
+      this._loadChatMessagesFromLocalStorage();
+    }
+  }
+
+  _loadChatMessagesFromLocalStorage() {
+    try {
+      const savedMessages = localStorage.getItem('ai_agent_ha_chat_messages');
+      if (savedMessages) {
+        const parsed = JSON.parse(savedMessages);
+        const saved = parsed.messages && parsed.provider === this._selectedProvider ? parsed.messages : null;
+        if (saved && Array.isArray(saved)) {
+          this._messages = saved;
+          console.debug('Loaded chat messages from localStorage:', this._messages.length);
+          this.requestUpdate();
+        } else {
+          console.debug('No chat messages in localStorage for current provider');
+          this._messages = [];
+        }
+      } else {
+        console.debug('No chat messages in localStorage');
+        this._messages = [];
+      }
+    } catch (e) {
+      console.error('Error loading chat messages from localStorage:', e);
+      this._messages = [];
+    }
+  }
+
+  async _saveChatMessages() {
+    if (!this.hass || !this._selectedProvider) {
+      console.debug('Hass not available, saving to localStorage only');
+      this._saveChatMessagesToLocalStorage();
+      return;
+    }
+
+    console.debug('Saving chat messages:', this._messages.length);
+    try {
+      const result = await this.hass.callService('ai_agent_ha', 'save_chat_messages', {
+        messages: this._messages,
+        provider: this._selectedProvider
+      });
+      console.debug('Save chat messages result:', result);
+
+      // Also save to localStorage as backup
+      this._saveChatMessagesToLocalStorage();
+    } catch (error) {
+      console.error('Error saving chat messages to service:', error);
+      // Fallback to localStorage if service fails
+      this._saveChatMessagesToLocalStorage();
+    }
+  }
+
+  _saveChatMessagesToLocalStorage() {
+    try {
+      const data = {
+        provider: this._selectedProvider,
+        messages: this._messages
+      };
+      localStorage.setItem('ai_agent_ha_chat_messages', JSON.stringify(data));
+      console.debug('Saved chat messages to localStorage');
+    } catch (e) {
+      console.error('Error saving chat messages to localStorage:', e);
     }
   }
 
@@ -2429,13 +2527,15 @@ class AiAgentHaPanel extends LitElement {
            changedProps.has('_showProviderDropdown');
   }
 
-  _clearChat() {
+  async _clearChat() {
     this._messages = [];
     this._clearLoadingState();
     this._error = null;
     this._pendingAutomation = null;
     this._debugInfo = null;
     // Don't clear prompt history - users might want to keep it
+    // Save empty messages to clear stored chat
+    await this._saveChatMessages();
   }
 
   _resolveProviderFromEntry(entry) {

@@ -1392,6 +1392,8 @@ class AiAgentHaAgent:
         self._last_request_time = 0
         self._request_count = 0
         self._request_window_start = time.time()
+        self._conversation_store: Optional[Store] = None
+        self._provider_id = config.get("ai_provider", "openai")
 
         provider = config.get("ai_provider", "openai")
         models_config = config.get("models", {})
@@ -3113,6 +3115,10 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                     else {"error": "Invalid cached result"}
                 )
 
+            # Load conversation history if not already loaded
+            if not self.conversation_history and self._conversation_store is None:
+                await self.load_conversation_history()
+
             # Add system message to conversation if it's the first message
             if not self.conversation_history:
                 _LOGGER.debug("Adding system message to new conversation")
@@ -3121,6 +3127,9 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
             # Add user query to conversation
             self.conversation_history.append({"role": "user", "content": user_query})
             _LOGGER.debug("Added user query to conversation history")
+            
+            # Save conversation history after adding user message
+            await self.save_conversation_history()
 
             max_iterations = 5  # Prevent infinite loops
             iteration = 0
@@ -3427,6 +3436,8 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                                     ),  # Store clean JSON
                                 }
                             )
+                            # Save conversation history after assistant response
+                            await self.save_conversation_history()
 
                             # Return final response
                             _LOGGER.debug(
@@ -3944,10 +3955,11 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
             f"Failed after {retry_count} retries. Last error: {str(last_error)}"
         )
 
-    def clear_conversation_history(self) -> None:
+    async def clear_conversation_history(self) -> None:
         """Clear the conversation history and cache."""
         self.conversation_history = []
         self._cache.clear()
+        await self.save_conversation_history()
         _LOGGER.debug("Conversation history and cache cleared")
 
     async def set_entity_state(
@@ -4130,3 +4142,91 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
         except Exception as e:
             _LOGGER.exception("Error loading prompt history: %s", str(e))
             return {"error": f"Error loading prompt history: {str(e)}", "history": []}
+
+    async def load_conversation_history(self) -> None:
+        """Load conversation history from HA storage."""
+        try:
+            if self._conversation_store is None:
+                provider_id = self._provider_id
+                self._conversation_store = Store(
+                    self.hass, 1, f"ai_agent_ha_conversation_{provider_id}"
+                )
+            data = await self._conversation_store.async_load()
+            if data and "conversation_history" in data:
+                self.conversation_history = data["conversation_history"]
+                _LOGGER.debug(
+                    "Loaded %d messages from conversation history",
+                    len(self.conversation_history),
+                )
+            else:
+                _LOGGER.debug("No conversation history found in storage")
+        except Exception as e:
+            _LOGGER.warning("Error loading conversation history: %s", str(e))
+            self.conversation_history = []
+
+    async def save_conversation_history(self) -> None:
+        """Save conversation history to HA storage."""
+        try:
+            if self._conversation_store is None:
+                provider_id = self._provider_id
+                self._conversation_store = Store(
+                    self.hass, 1, f"ai_agent_ha_conversation_{provider_id}"
+                )
+            # Limit history to last 100 messages to avoid storage bloat
+            history_to_save = self.conversation_history[-100:] if len(self.conversation_history) > 100 else self.conversation_history
+            await self._conversation_store.async_save({"conversation_history": history_to_save})
+            _LOGGER.debug(
+                "Saved %d messages to conversation history",
+                len(history_to_save),
+            )
+        except Exception as e:
+            _LOGGER.warning("Error saving conversation history: %s", str(e))
+
+    async def save_chat_messages(
+        self, user_id: str, messages: List[Dict[str, Any]], provider: str
+    ) -> Dict[str, Any]:
+        """Save chat messages to HA storage."""
+        try:
+            store: Store = Store(
+                self.hass, 1, f"ai_agent_ha_chat_{user_id}_{provider}"
+            )
+            # Limit to last 200 messages to avoid storage bloat
+            messages_to_save = messages[-200:] if len(messages) > 200 else messages
+            await store.async_save({"messages": messages_to_save, "provider": provider})
+            _LOGGER.debug(
+                "Saved %d chat messages for user %s, provider %s",
+                len(messages_to_save),
+                user_id,
+                provider,
+            )
+            return {"success": True}
+        except Exception as e:
+            _LOGGER.exception("Error saving chat messages: %s", str(e))
+            return {"error": f"Error saving chat messages: {str(e)}"}
+
+    async def load_chat_messages(
+        self, user_id: str, provider: str
+    ) -> Dict[str, Any]:
+        """Load chat messages from HA storage."""
+        try:
+            store: Store = Store(
+                self.hass, 1, f"ai_agent_ha_chat_{user_id}_{provider}"
+            )
+            data = await store.async_load()
+            if data and "messages" in data:
+                messages = data["messages"]
+                _LOGGER.debug(
+                    "Loaded %d chat messages for user %s, provider %s",
+                    len(messages),
+                    user_id,
+                    provider,
+                )
+                return {"success": True, "messages": messages}
+            else:
+                _LOGGER.debug(
+                    "No chat messages found for user %s, provider %s", user_id, provider
+                )
+                return {"success": True, "messages": []}
+        except Exception as e:
+            _LOGGER.exception("Error loading chat messages: %s", str(e))
+            return {"error": f"Error loading chat messages: {str(e)}", "messages": []}
