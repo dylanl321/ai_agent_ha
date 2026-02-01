@@ -4,51 +4,233 @@ import {
   css,
 } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
 import { unsafeHTML } from "https://unpkg.com/lit-html@1.4.1/directives/unsafe-html.js?module";
-import { marked } from "https://cdn.jsdelivr.net/npm/marked@11.1.1/lib/marked.esm.js";
-import DOMPurify from "https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.es.mjs";
 
 console.log("AI Agent HA Panel loading..."); // Debug log
 
-// Configure marked options
-marked.setOptions({
-  breaks: true, // Convert \n to <br>
-  gfm: true, // GitHub Flavored Markdown
-  headerIds: false, // Disable header IDs for security
-  mangle: false, // Don't mangle email addresses
-});
+// Lazy load markdown libraries (only when needed)
+let marked = null;
+let DOMPurify = null;
+let librariesLoading = false;
+let librariesLoaded = false;
+let librariesLoadPromise = null;
 
-// Parse markdown with sanitization
+async function loadMarkdownLibraries() {
+  if (librariesLoaded) return true;
+  if (librariesLoading && librariesLoadPromise) {
+    // Wait for ongoing load
+    return librariesLoadPromise;
+  }
+  
+  librariesLoading = true;
+  librariesLoadPromise = (async () => {
+    try {
+      // Load marked.js
+      const markedModule = await import("https://cdn.jsdelivr.net/npm/marked@11.1.1/lib/marked.esm.js");
+      marked = markedModule.marked || markedModule.default || markedModule;
+      
+      // Configure marked options
+      if (marked && typeof marked.setOptions === 'function') {
+        marked.setOptions({
+          breaks: true, // Convert \n to <br>
+          gfm: true, // GitHub Flavored Markdown
+          headerIds: false, // Disable header IDs for security
+          mangle: false, // Don't mangle email addresses
+        });
+      }
+      
+      // Load DOMPurify
+      const purifyModule = await import("https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.es.mjs");
+      DOMPurify = purifyModule.default || purifyModule.DOMPurify || purifyModule;
+      
+      librariesLoaded = true;
+      librariesLoading = false;
+      return true;
+    } catch (error) {
+      console.warn('Failed to load markdown libraries, will use fallback parser:', error);
+      librariesLoading = false;
+      return false;
+    }
+  })();
+  
+  return librariesLoadPromise;
+}
+
+// Parse markdown with sanitization (synchronous for template use)
 function parseMarkdown(text) {
   if (!text) return '';
   
-  try {
-    // Parse markdown to HTML
-    const html = marked.parse(text);
-    
-    // Sanitize HTML to prevent XSS attacks
-    const cleanHtml = DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: [
-        'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
-        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-        'ul', 'ol', 'li',
-        'a', 'blockquote',
-        'table', 'thead', 'tbody', 'tr', 'th', 'td',
-        'hr'
-      ],
-      ALLOWED_ATTR: ['href', 'target', 'rel'],
-      ALLOW_DATA_ATTR: false,
+  // Try to load libraries in background if not already loaded (non-blocking)
+  if (!librariesLoaded && !librariesLoading) {
+    loadMarkdownLibraries().catch(() => {
+      // Silently fail - will use fallback
     });
-    
-    return cleanHtml;
-  } catch (error) {
-    console.error('Error parsing markdown:', error);
-    // Fallback: escape HTML and return as plain text
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n/g, '<br>');
   }
+  
+  // If libraries are loaded, use them
+  if (marked && DOMPurify) {
+    try {
+      // Parse markdown to HTML
+      const html = marked.parse(text);
+      
+      // Sanitize HTML to prevent XSS attacks
+      const cleanHtml = DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: [
+          'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'ul', 'ol', 'li',
+          'a', 'blockquote',
+          'table', 'thead', 'tbody', 'tr', 'th', 'td',
+          'hr'
+        ],
+        ALLOWED_ATTR: ['href', 'target', 'rel'],
+        ALLOW_DATA_ATTR: false,
+      });
+      
+      return cleanHtml;
+    } catch (error) {
+      console.warn('Error parsing markdown with library, using fallback:', error);
+      return simpleMarkdownParse(text);
+    }
+  }
+  
+  // Use fallback parser (always works, no external dependencies)
+  return simpleMarkdownParse(text);
+}
+
+// Simple fallback markdown parser (no external dependencies)
+function simpleMarkdownParse(text) {
+  if (!text) return '';
+  
+  // Split into lines for better list handling
+  const lines = text.split('\n');
+  const processedLines = [];
+  let inList = false;
+  let listType = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // Escape HTML first
+    const escapeHtml = (str) => {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    };
+    
+    // Process inline markdown (bold, italic, code, links)
+    const processInline = (str) => {
+      let result = escapeHtml(str);
+      
+      // Code blocks (before other processing)
+      result = result.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+      result = result.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+      
+      // Links
+      result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+      
+      // Bold (double asterisk or double underscore)
+      result = result.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+      result = result.replace(/__([^_]+?)__/g, '<strong>$1</strong>');
+      
+      // Italic (single asterisk, but not if part of bold)
+      result = result.replace(/(^|[^*])\*([^*\n]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
+      result = result.replace(/(^|[^_])_([^_\n]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
+      
+      return result;
+    };
+    
+    // Headers
+    if (trimmed.startsWith('### ')) {
+      if (inList) {
+        processedLines.push(`</${listType}>`);
+        inList = false;
+        listType = null;
+      }
+      processedLines.push(`<h3>${processInline(trimmed.substring(4))}</h3>`);
+      continue;
+    }
+    if (trimmed.startsWith('## ')) {
+      if (inList) {
+        processedLines.push(`</${listType}>`);
+        inList = false;
+        listType = null;
+      }
+      processedLines.push(`<h2>${processInline(trimmed.substring(3))}</h2>`);
+      continue;
+    }
+    if (trimmed.startsWith('# ')) {
+      if (inList) {
+        processedLines.push(`</${listType}>`);
+        inList = false;
+        listType = null;
+      }
+      processedLines.push(`<h1>${processInline(trimmed.substring(2))}</h1>`);
+      continue;
+    }
+    
+    // Unordered lists
+    const ulMatch = trimmed.match(/^[\*\-] (.+)$/);
+    if (ulMatch) {
+      if (!inList || listType !== 'ul') {
+        if (inList) processedLines.push(`</${listType}>`);
+        processedLines.push('<ul>');
+        inList = true;
+        listType = 'ul';
+      }
+      processedLines.push(`<li>${processInline(ulMatch[1])}</li>`);
+      continue;
+    }
+    
+    // Ordered lists
+    const olMatch = trimmed.match(/^\d+\. (.+)$/);
+    if (olMatch) {
+      if (!inList || listType !== 'ol') {
+        if (inList) processedLines.push(`</${listType}>`);
+        processedLines.push('<ol>');
+        inList = true;
+        listType = 'ol';
+      }
+      processedLines.push(`<li>${processInline(olMatch[1])}</li>`);
+      continue;
+    }
+    
+    // End list if blank line
+    if (inList && trimmed === '') {
+      processedLines.push(`</${listType}>`);
+      inList = false;
+      listType = null;
+      processedLines.push('');
+      continue;
+    }
+    
+    // End list if non-list line
+    if (inList && !ulMatch && !olMatch) {
+      processedLines.push(`</${listType}>`);
+      inList = false;
+      listType = null;
+    }
+    
+    // Regular line
+    if (trimmed) {
+      processedLines.push(`<p>${processInline(trimmed)}</p>`);
+    } else {
+      processedLines.push('');
+    }
+  }
+  
+  // Close any open list
+  if (inList) {
+    processedLines.push(`</${listType}>`);
+  }
+  
+  let html = processedLines.join('\n');
+  
+  // Clean up empty paragraphs
+  html = html.replace(/(<p><\/p>\n?)+/g, '');
+  
+  return html;
 }
 
 const PROVIDERS = {
@@ -767,6 +949,11 @@ class AiAgentHaPanel extends LitElement {
   async connectedCallback() {
     super.connectedCallback();
     console.debug("AI Agent HA Panel connected");
+    
+    // Try to load markdown libraries in the background (non-blocking)
+    loadMarkdownLibraries().catch(err => {
+      console.warn('Failed to preload markdown libraries, will use fallback:', err);
+    });
     if (this.hass && !this._eventSubscriptionSetup) {
       this._eventSubscriptionSetup = true;
       this.hass.connection.subscribeEvents(
